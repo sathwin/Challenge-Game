@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # CHALLENGE Game - Refugee Education Policy Simulation
 
 CHALLENGE (Creating Holistic Approaches for Learning, Liberty, and Equity in New Global Education) is an interactive simulation game focused on refugee education policymaking. This web application allows users to engage with the complexities of education policy for refugee populations under budget constraints, promoting critical reflection on justice and inclusion.
@@ -75,3 +76,6 @@ The goal is to promote justice-oriented thinking about refugee education and to 
 ## Credits
 
 Developed as part of the AI CHALLENGE Hackathon, inspired by research on refugee education policy and critical pedagogy.
+=======
+# Challenge-Game
+>>>>>>> 090bec4a257deaaa623df3fa2c4fc1c0dc877ebb
