@@ -15,7 +15,8 @@ import {
   useTheme,
   Grid,
   Avatar,
-  CircularProgress
+  CircularProgress,
+  Chip
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import MicIcon from '@mui/icons-material/Mic';
@@ -82,6 +83,23 @@ const Phase2: React.FC = () => {
     userPolicies: Object.keys(user?.policyChoices || {}).length,
     policyCategoriesCount: policyCategories?.length || 0
   });
+  
+  // Helper function to get color based on political stance
+  const getStanceColor = (stance: string) => {
+    switch (stance?.toLowerCase()) {
+      case 'conservative':
+        return '#0047AB'; // Cobalt Blue
+      case 'liberal':
+      case 'progressive':
+        return '#00BFFF'; // Deep Sky Blue
+      case 'socialist':
+        return '#DC143C'; // Crimson
+      case 'moderate':
+        return '#9370DB'; // Medium Purple
+      default:
+        return '#808080'; // Gray
+    }
+  };
   
   // States for discussion flow
   const [messages, setMessages] = useState<MessageType[]>([]);
@@ -649,212 +667,360 @@ const Phase2: React.FC = () => {
         </Box>
       )}
       
-      <Container maxWidth="xl">
-        <Box sx={{ my: 4 }}>
-          <Typography variant="h3" align="center" gutterBottom sx={{ 
-            mb: 1,
-            color: theme.palette.primary.light,
-            textShadow: '0 0 10px rgba(139, 221, 255, 0.5), 0 0 20px rgba(139, 221, 255, 0.3)',
-            letterSpacing: '0.08em',
-            fontWeight: 'bold',
-            fontFamily: '"Press Start 2P", monospace',
-            fontSize: { xs: '1.5rem', sm: '1.8rem', md: '2.2rem' }
-          }}>
-            Phase II: Group Discussion & Consensus Building
+      <Container maxWidth="md">
+        <Box sx={{ my: 2 }}>
+          <Typography variant="h5" align="center" gutterBottom>
+            <span style={{ fontWeight: 'bold', color: theme.palette.primary.main }}>Phase 2: </span> 
+            Group Discussion
           </Typography>
           
-          <Typography variant="h6" align="center" gutterBottom sx={{ 
-            mb: 3, 
-            color: theme.palette.text.secondary,
-            fontSize: { xs: '0.9rem', sm: '1rem', md: '1.1rem' }
-          }}>
-            Discuss your policy choices with AI agents and reach consensus through voting.
-          </Typography>
-
-          {/* Phase Progress Indicator */}
+          {/* Content box with smaller heading and less padding */}
           <Box sx={{ 
             display: 'flex', 
-            justifyContent: 'center', 
-            mb: 4, 
-            p: 3, 
-            backgroundImage: 'linear-gradient(to right, rgba(20, 20, 30, 0.8), rgba(30, 30, 50, 0.8), rgba(20, 20, 30, 0.8))',
-            borderRadius: '12px',
-            border: `1px solid rgba(139, 221, 255, 0.2)`,
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2), 0 0 20px rgba(139, 221, 255, 0.1)',
-            padding: { xs: '10px', md: '16px' },
+            flexDirection: { xs: 'column', md: 'row' },
+            gap: 2,
+            mt: 1
           }}>
-            <Box sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              mx: 2, 
-              opacity: currentStep === 'intro' ? 1 : 0.5,
-              flexDirection: { xs: 'column', sm: 'row' },
-              minWidth: { xs: '60px', sm: 'auto' }
-            }}>
-              <GroupsIcon sx={{ 
-                mr: { xs: 0, sm: 1 }, 
-                mb: { xs: 1, sm: 0 },
-                color: theme.palette.primary.main,
-                fontSize: { xs: '1.5rem', md: '1.8rem' }
-              }} />
-              <Typography variant="body2" color="text.secondary">Introduction</Typography>
-            </Box>
-            <Divider orientation="vertical" flexItem sx={{ mx: 1, display: { xs: 'none', sm: 'block' } }} />
-            <Divider orientation="horizontal" sx={{ my: 1, width: '100%', display: { xs: 'block', sm: 'none' } }} />
-            
-            <Box sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              mx: 2, 
-              opacity: currentStep === 'discussion' ? 1 : 0.5,
-              flexDirection: { xs: 'column', sm: 'row' },
-              minWidth: { xs: '60px', sm: 'auto' }
-            }}>
-              <ChatIcon sx={{ 
-                mr: { xs: 0, sm: 1 }, 
-                mb: { xs: 1, sm: 0 },
-                color: theme.palette.primary.main,
-                fontSize: { xs: '1.5rem', md: '1.8rem' }
-              }} />
-              <Typography variant="body2" color="text.secondary">Discussion</Typography>
-            </Box>
-            <Divider orientation="vertical" flexItem sx={{ mx: 1, display: { xs: 'none', sm: 'block' } }} />
-            <Divider orientation="horizontal" sx={{ my: 1, width: '100%', display: { xs: 'block', sm: 'none' } }} />
-            
-            <Box sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              mx: 2, 
-              opacity: currentStep === 'voting' ? 1 : 0.5,
-              flexDirection: { xs: 'column', sm: 'row' },
-              minWidth: { xs: '60px', sm: 'auto' }
-            }}>
-              <HowToVoteIcon sx={{ 
-                mr: { xs: 0, sm: 1 }, 
-                mb: { xs: 1, sm: 0 },
-                color: theme.palette.primary.main,
-                fontSize: { xs: '1.5rem', md: '1.8rem' }
-              }} />
-              <Typography variant="body2" color="text.secondary">Voting</Typography>
-            </Box>
-            <Divider orientation="vertical" flexItem sx={{ mx: 1, display: { xs: 'none', sm: 'block' } }} />
-            <Divider orientation="horizontal" sx={{ my: 1, width: '100%', display: { xs: 'block', sm: 'none' } }} />
-            
-            <Box sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              mx: 2, 
-              opacity: currentStep === 'results' ? 1 : 0.5,
-              flexDirection: { xs: 'column', sm: 'row' },
-              minWidth: { xs: '60px', sm: 'auto' }
-            }}>
-              <CheckCircleIcon sx={{ 
-                mr: { xs: 0, sm: 1 }, 
-                mb: { xs: 1, sm: 0 },
-                color: theme.palette.primary.main,
-                fontSize: { xs: '1.5rem', md: '1.8rem' }
-              }} />
-              <Typography variant="body2" color="text.secondary">Results</Typography>
-            </Box>
-          </Box>
-          
-          <Box sx={{ 
-            display: 'flex', 
-            flexDirection: { xs: 'column', md: 'row' }, 
-            gap: 3 
-          }}>
-            {/* Left panel: Policy options and budget */}
-            <Box sx={{ width: { xs: '100%', md: '30%' } }}>
-              <Paper elevation={3} sx={{ 
-                p: 3, 
-                mb: 3, 
-                borderLeft: `4px solid ${theme.palette.primary.main}`,
-                backgroundImage: 'linear-gradient(to bottom, rgba(30, 30, 50, 0.95), rgba(25, 25, 45, 0.97))',
-                borderRadius: '8px',
-                boxShadow: `0 5px 15px rgba(0, 0, 0, 0.3), 0 0 20px rgba(139, 221, 255, 0.2)`
-              }}>
-                <Typography variant="h5" gutterBottom color="primary" sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center',
-                  pb: 1,
-                  borderBottom: `1px solid ${theme.palette.divider}`,
-                  fontFamily: '"Pixelify Sans", monospace',
-                  fontSize: { xs: '1.3rem', md: '1.5rem' }
-                }}>
-                  <HowToVoteIcon sx={{ mr: 1, fontSize: { xs: '1.4rem', md: '1.6rem' } }} />
-                  Your Policy Selections
-                </Typography>
-                
-                <BudgetSummary showRemaining={false} />
-                
-                <Stack spacing={1.5} sx={{ mt: 2 }}>
-                  {policyCategories.map(cat => {
-                    const userChoice = user.policyChoices[cat.id];
-                    const option = cat.options.find(opt => opt.id === userChoice);
-                    const isActiveCategory = cat.id === category?.id;
+            {/* Left panel for chat */}
+            <Box sx={{ width: { xs: '100%', md: '70%' } }}>
+              {/* Chat box */}
+              <Paper elevation={2} ref={chatContainerRef}
+                sx={{ 
+                  height: 'calc(100vh - 200px)', 
+                  overflowY: 'auto', 
+                  mb: 1,
+                  p: 1.5,
+                  borderRadius: 1,
+                  bgcolor: 'background.paper',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                  '&::-webkit-scrollbar': {
+                    width: '6px',
+                  },
+                  '&::-webkit-scrollbar-track': {
+                    background: 'rgba(0,0,0,0.05)',
+                  },
+                  '&::-webkit-scrollbar-thumb': {
+                    background: 'rgba(0,0,0,0.15)',
+                    borderRadius: '4px',
+                  }
+                }}
+              >
+                {messages.length === 0 ? (
+                  // Show this when no messages are available
+                  <Box sx={{ 
+                    display: 'flex', 
+                    flexDirection: 'column',
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    height: '100%',
+                    p: 2,
+                    textAlign: 'center',
+                    opacity: 0.7
+                  }}>
+                    <ChatIcon sx={{ fontSize: 60, mb: 2, color: 'primary.main' }} />
+                    <Typography variant="h6" color="primary.light" gutterBottom>
+                      Welcome to the Discussion Phase
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 2, maxWidth: '80%' }}>
+                      Your conversation with the agents will appear here.
+                    </Typography>
                     
-                    return (
-                      <Box 
-                        key={cat.id} 
-                        sx={{ 
-                          display: 'flex', 
-                          justifyContent: 'space-between', 
-                          alignItems: 'center',
-                          p: 1.5,
-                          borderRadius: '4px',
-                          backgroundColor: isActiveCategory ? 'rgba(139, 221, 255, 0.1)' : 'transparent',
-                          border: isActiveCategory ? `1px solid ${theme.palette.primary.main}` : 'none',
-                          fontSize: { xs: '0.9rem', md: '1rem' }
-                        }}
+                    {/* Add force refresh button */}
+                    <Button 
+                      variant="outlined" 
+                      color="primary"
+                      onClick={() => {
+                        // Force refresh initialization
+                        console.log("Manual refresh triggered");
+                        localStorage.removeItem('phase2_discussion_initialized');
+                        localStorage.removeItem('discussionInitialized');
+                        localStorage.removeItem('introCompleted');
+                        dispatch({ type: 'INITIALIZE_AI_CHOICES' });
+                        setTimeout(() => initializeDiscussion(), 200);
+                      }}
+                      size="small"
+                      sx={{ mt: 1 }}
+                    >
+                      Start Discussion
+                    </Button>
+                  </Box>
+                ) : (
+                  // Show messages when they're available
+                  <AnimatePresence>
+                    {messages.map((msg, index) => (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, x: msg.isUser ? 10 : -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.2 }}
                       >
-                        <Typography variant="body1" sx={{ fontWeight: 'medium' }}>{cat.name}</Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          {option && (
-                            <Typography 
-                              variant="body2" 
-                              sx={{ 
-                                fontWeight: 'bold',
-                                color: isActiveCategory ? theme.palette.primary.light : 'inherit',
-                                fontSize: { xs: '0.85rem', md: '0.95rem' }
+                        {msg.isUser ? (
+                          <Box sx={{ 
+                            display: 'flex', 
+                            justifyContent: 'flex-end', 
+                            mb: 1.5,
+                            maxWidth: '100%'
+                          }}>
+                            <Paper
+                              sx={{
+                                p: 1.5,
+                                maxWidth: '85%',
+                                bgcolor: 'primary.main',
+                                color: 'white',
+                                borderRadius: '12px 12px 0 12px',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.12)'
                               }}
                             >
-                              {option.title}
-                            </Typography>
-                          )}
-                          {groupDecisions[cat.id] === userChoice && (
-                            <VerifiedIcon color="success" sx={{ ml: 1, fontSize: 16 }} />
-                          )}
+                              <Typography variant="body1" sx={{ fontSize: '0.95rem' }}>{msg.text}</Typography>
+                            </Paper>
+                          </Box>
+                        ) : (
+                          msg.agent ? (
+                            <Box sx={{ display: 'flex', mb: 1.5, maxWidth: '100%' }}>
+                              <Avatar
+                                src={msg.agent.avatar}
+                                sx={{
+                                  width: 32,
+                                  height: 32,
+                                  mr: 1,
+                                  bgcolor: getStanceColor(msg.agent.politicalStance),
+                                  boxShadow: '0 1px 2px rgba(0,0,0,0.15)'
+                                }}
+                              >
+                                {msg.agent.name && msg.agent.name.charAt(0)}
+                              </Avatar>
+                              <Box sx={{ maxWidth: 'calc(100% - 48px)' }}>
+                                <Box sx={{ 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  mb: 0.5,
+                                  flexWrap: 'wrap'
+                                }}>
+                                  <Typography 
+                                    variant="subtitle2" 
+                                    sx={{ 
+                                      mr: 1, 
+                                      fontWeight: 'bold',
+                                      fontSize: '0.85rem'
+                                    }}
+                                  >
+                                    {msg.agent.name}
+                                  </Typography>
+                                  <Chip
+                                    label={msg.agent.politicalStance}
+                                    size="small"
+                                    sx={{
+                                      height: 20,
+                                      fontSize: '0.65rem',
+                                      bgcolor: getStanceColor(msg.agent.politicalStance),
+                                      color: 'white',
+                                      '& .MuiChip-label': {
+                                        px: 0.8,
+                                        py: 0.2
+                                      }
+                                    }}
+                                  />
+                                </Box>
+                                <Paper 
+                                  elevation={1} 
+                                  sx={{ 
+                                    p: 1.5, 
+                                    borderRadius: '8px', 
+                                    backgroundColor: 'background.paper',
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
+                                  }}
+                                >
+                                  <Typography variant="body1" sx={{ 
+                                    fontSize: '0.95rem',
+                                    lineHeight: 1.4,
+                                    whiteSpace: 'pre-wrap'
+                                  }}>
+                                    {/* Remove "Mira sotela!" from the text if it exists */}
+                                    {msg.text.replace(/Mira sotela!/g, '')}
+                                  </Typography>
+                                </Paper>
+                              </Box>
+                            </Box>
+                          ) : (
+                            // For system messages that don't have an agent
+                            <Box sx={{ display: 'flex', mb: 1.5, maxWidth: '100%' }}>
+                              <Avatar
+                                sx={{
+                                  width: 32,
+                                  height: 32,
+                                  mr: 1,
+                                  bgcolor: 'primary.dark',
+                                  boxShadow: '0 1px 2px rgba(0,0,0,0.15)',
+                                  fontSize: '0.75rem'
+                                }}
+                              >
+                                S
+                              </Avatar>
+                              <motion.div
+                                initial={{ scale: 0.96 }}
+                                animate={{ scale: 1 }}
+                                transition={{ duration: 0.2 }}
+                                style={{ maxWidth: 'calc(100% - 48px)' }}
+                              >
+                                <Paper
+                                  sx={{
+                                    p: 1.5,
+                                    borderRadius: '8px',
+                                    bgcolor: 'rgba(30, 30, 60, 0.85)',
+                                    color: 'white',
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.15)'
+                                  }}
+                                >
+                                  <Typography 
+                                    variant="subtitle1" 
+                                    fontWeight="bold" 
+                                    sx={{ 
+                                      mb: 0.5,
+                                      fontSize: '0.85rem'
+                                    }}
+                                  >
+                                    System
+                                  </Typography>
+                                  <Typography 
+                                    variant="body1" 
+                                    sx={{ 
+                                      whiteSpace: 'pre-wrap',
+                                      fontSize: '0.95rem',
+                                      lineHeight: 1.4
+                                    }}
+                                  >
+                                    {msg.text}
+                                  </Typography>
+                                </Paper>
+                              </motion.div>
+                            </Box>
+                          )
+                        )}
+                      </motion.div>
+                    ))}
+                    
+                    {/* Typing indicator */}
+                    {processingResponse && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', ml: 2, mt: 0.5, mb: 1 }}>
+                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                            Agent is typing
+                          </Typography>
+                          <motion.div
+                            animate={{ 
+                              opacity: [0.4, 1, 0.4],
+                              y: [0, -3, 0] 
+                            }}
+                            transition={{ 
+                              duration: 1.2,
+                              repeat: Infinity,
+                              ease: "easeInOut" 
+                            }}
+                            style={{ marginLeft: 4 }}
+                          >
+                            •••
+                          </motion.div>
                         </Box>
-                      </Box>
-                    );
-                  })}
-                </Stack>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                )}
+                
+                {/* Input area */}
+                <motion.div
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ duration: 0.4 }}
+                >
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center',
+                    gap: 1,
+                    py: 1,
+                    mt: 1,
+                    borderTop: '1px solid',
+                    borderColor: 'divider'
+                  }}>
+                    <TextField
+                      fullWidth
+                      variant="outlined"
+                      placeholder="Type your message..."
+                      value={userInput}
+                      onChange={(e) => setUserInput(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                      size="small"
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: '18px',
+                          fontSize: '0.95rem',
+                          py: 0.5
+                        }
+                      }}
+                    />
+                    <IconButton
+                      color="primary"
+                      onClick={handleSendMessage}
+                      disabled={!userInput.trim() || processingResponse}
+                      sx={{ p: 1 }}
+                    >
+                      <SendIcon />
+                    </IconButton>
+                  </Box>
+                </motion.div>
+              </Paper>
+            </Box>
+            
+            {/* Right panel with policy info and voting */}
+            <Box sx={{ width: { xs: '100%', md: '30%' } }}>
+              {/* Current policy info */}
+              <Paper elevation={2} sx={{ p: 2, mb: 2, bgcolor: 'background.paper' }}>
+                <Typography variant="subtitle1" sx={{ 
+                  fontWeight: 'bold', 
+                  display: 'flex', 
+                  alignItems: 'center',
+                  mb: 1,
+                  fontSize: '0.95rem'
+                }}>
+                  <GroupsIcon sx={{ mr: 1, fontSize: '1rem' }} />
+                  Current Topic
+                </Typography>
+                
+                <Typography variant="body1" sx={{ fontWeight: 'bold', color: 'primary.main', fontSize: '0.9rem' }}>
+                  {category?.name}
+                </Typography>
+                
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontSize: '0.85rem' }}>
+                  {category?.options?.[0]?.description?.substring(0, 120) || 'Discuss policy options for refugee education.'}
+                </Typography>
               </Paper>
               
+              {/* Voting section */}
               {currentStep === 'voting' && (
-                <Paper elevation={3} sx={{ 
-                  p: 3, 
-                  mb: 3, 
-                  borderLeft: `4px solid ${theme.palette.secondary.main}`,
-                  backgroundColor: 'rgba(30, 30, 45, 0.95)',
-                  boxShadow: '0 5px 15px rgba(0, 0, 0, 0.3)'
-                }}>
-                  <Typography variant="h5" gutterBottom color="secondary" sx={{
-                    fontFamily: '"Pixelify Sans", monospace',
-                    fontSize: { xs: '1.3rem', md: '1.5rem' }
+                <Paper elevation={2} sx={{ p: 2, mb: 2, bgcolor: 'background.paper' }}>
+                  <Typography variant="subtitle1" sx={{ 
+                    fontWeight: 'bold', 
+                    display: 'flex', 
+                    alignItems: 'center',
+                    mb: 1,
+                    fontSize: '0.95rem'
                   }}>
+                    <HowToVoteIcon sx={{ mr: 1, fontSize: '1rem' }} />
                     Vote on {category?.name}
                   </Typography>
                   
                   {/* Show policy options for voting */}
-                  <Box sx={{ mt: 2, mb: 3 }}>
+                  <Box sx={{ mt: 1, mb: 2 }}>
                     {category.options.map(option => (
                       <Box 
                         key={option.id}
                         sx={{ 
-                          p: 2, 
-                          mb: 1.5, 
-                          borderRadius: '8px',
+                          p: 1.5, 
+                          mb: 1, 
+                          borderRadius: '6px',
                           backgroundColor: user.policyChoices[category.id] === option.id 
                             ? 'rgba(25, 118, 210, 0.1)' 
                             : 'transparent',
@@ -877,10 +1043,10 @@ const Phase2: React.FC = () => {
                           });
                         }}
                       >
-                        <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                        <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
                           {option.title}
                         </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontSize: '0.8rem' }}>
                           Cost: {option.cost} budget units
                         </Typography>
                       </Box>
@@ -888,11 +1054,11 @@ const Phase2: React.FC = () => {
                   </Box>
                   
                   {processingVotes ? (
-                    <Box sx={{ width: '100%', mt: 2 }}>
-                      <Typography variant="body2" sx={{ mb: 1 }}>
+                    <Box sx={{ width: '100%', mt: 1 }}>
+                      <Typography variant="body2" sx={{ mb: 0.5, fontSize: '0.8rem' }}>
                         Tallying votes...
                       </Typography>
-                      <LinearProgress color="secondary" />
+                      <LinearProgress color="secondary" sx={{ height: 4, borderRadius: 2 }} />
                     </Box>
                   ) : (
                     <Button 
@@ -900,350 +1066,42 @@ const Phase2: React.FC = () => {
                       color="secondary" 
                       fullWidth 
                       onClick={handleVote}
+                      size="medium"
                       sx={{ 
-                        mt: 2,
-                        py: 1.5,
-                        fontSize: '1rem',
+                        mt: 1,
+                        py: 1,
                         fontWeight: 'bold'
                       }}
                     >
-                      Submit Votes
+                      Submit Vote
                     </Button>
                   )}
                 </Paper>
               )}
               
-              {currentStep === 'results' && (
-                <Paper elevation={3} sx={{
-                  p: 3,
-                  borderLeft: `4px solid ${theme.palette.success.main}`,
-                  backgroundColor: 'rgba(30, 30, 45, 0.95)',
-                  boxShadow: '0 5px 15px rgba(0, 0, 0, 0.3)'
-                }}>
-                  <Typography variant="h5" gutterBottom color="success.light" sx={{ 
-                    mb: 2,
-                    fontFamily: '"Pixelify Sans", monospace',
-                    fontSize: { xs: '1.3rem', md: '1.5rem' }
-                  }}>
-                    Discussion Complete
-                  </Typography>
-                  <Typography variant="body1" paragraph>
-                    Your group has successfully discussed and voted on all policy categories.
-                  </Typography>
-                  <Button 
-                    variant="contained" 
-                    color="success" 
-                    fullWidth 
-                    onClick={handleProceedToPhase3}
-                    sx={{ 
-                      mt: 2,
-                      py: 1.5,
-                      fontSize: '1rem',
-                      fontWeight: 'bold'
-                    }}
-                  >
-                    Proceed to Phase III
-                  </Button>
-                </Paper>
-              )}
-
-              {/* Agent Profiles Card */}
-              <Paper elevation={3} sx={{ 
-                p: 3, 
-                mt: 3, 
-                borderLeft: `4px solid ${theme.palette.info.main}`,
-                backgroundColor: 'rgba(30, 30, 45, 0.95)',
-                boxShadow: '0 5px 15px rgba(0, 0, 0, 0.3)'
-              }}>
-                <Typography variant="h5" gutterBottom color="info.light" sx={{ 
+              {/* Budget summary */}
+              <Paper elevation={2} sx={{ p: 2, mb: 2, bgcolor: 'background.paper' }}>
+                <Typography variant="subtitle1" sx={{ 
+                  fontWeight: 'bold', 
                   display: 'flex', 
                   alignItems: 'center',
-                  pb: 1,
-                  borderBottom: `1px solid ${theme.palette.divider}`,
-                  fontFamily: '"Pixelify Sans", monospace',
-                  fontSize: { xs: '1.3rem', md: '1.5rem' }
+                  mb: 1,
+                  fontSize: '0.95rem'
                 }}>
-                  <GroupsIcon sx={{ mr: 1 }} />
-                  Discussion Group
+                  <HowToVoteIcon sx={{ mr: 1, fontSize: '1rem' }} />
+                  Budget Summary
                 </Typography>
                 
-                <Stack spacing={2} sx={{ mt: 2 }}>
-                  {agents.map(agent => (
-                    <Box key={agent.id} sx={{ 
-                      display: 'flex', 
-                      alignItems: 'center',
-                      p: 1.5,
-                      borderRadius: '8px',
-                      backgroundColor: 'rgba(50, 50, 70, 0.3)',
-                      transition: 'all 0.3s ease',
-                      '&:hover': {
-                        backgroundColor: 'rgba(50, 50, 70, 0.5)',
-                        transform: 'translateY(-2px)'
-                      }
-                    }}>
-                      <Avatar 
-                        src={agent.avatar} 
-                        sx={{ 
-                          width: { xs: 40, md: 48 }, 
-                          height: { xs: 40, md: 48 }, 
-                          mr: 2,
-                          border: '2px solid',
-                          borderColor: agent.politicalStance.toLowerCase() === 'conservative' ? '#0047AB' :
-                                      agent.politicalStance.toLowerCase() === 'liberal' ? '#00BFFF' :
-                                      agent.politicalStance.toLowerCase() === 'socialist' ? '#DC143C' : '#9370DB'
-                        }}
-                      >
-                        {agent.name.charAt(0)}
-                      </Avatar>
-                      <Box>
-                        <Typography variant="body1" sx={{ fontWeight: 'bold', lineHeight: 1.2, mb: 0.5 }}>
-                          {agent.name}
-                        </Typography>
-                        <Typography 
-                          variant="caption" 
-                          sx={{ 
-                            lineHeight: 1,
-                            backgroundColor: agent.politicalStance.toLowerCase() === 'conservative' ? 'rgba(0, 71, 171, 0.2)' :
-                                            agent.politicalStance.toLowerCase() === 'liberal' ? 'rgba(0, 191, 255, 0.2)' :
-                                            agent.politicalStance.toLowerCase() === 'socialist' ? 'rgba(220, 20, 60, 0.2)' : 'rgba(147, 112, 219, 0.2)',
-                            borderRadius: '4px',
-                            px: 1,
-                            py: 0.5,
-                            color: agent.politicalStance.toLowerCase() === 'conservative' ? '#0047AB' :
-                                   agent.politicalStance.toLowerCase() === 'liberal' ? '#00BFFF' :
-                                   agent.politicalStance.toLowerCase() === 'socialist' ? '#DC143C' : '#9370DB'
-                          }}
-                        >
-                          {agent.politicalStance}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  ))}
-                </Stack>
-              </Paper>
-            </Box>
-            
-            {/* Right panel: Chat interface */}
-            <Box sx={{ width: { xs: '100%', md: '70%' } }}>
-              <Paper elevation={3} sx={{ 
-                p: 2, 
-                flexGrow: 1, 
-                overflow: 'auto',
-                display: 'flex',
-                flexDirection: 'column',
-                height: { xs: '500px', sm: '600px', md: '700px', lg: '750px' },
-                mb: 2,
-                borderRadius: '12px',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)'
-              }} ref={chatContainerRef}>
-                {messages.length === 0 ? (
-                  // Show this when no messages are available
-                  <Box sx={{ 
-                    display: 'flex', 
-                    flexDirection: 'column',
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    height: '100%',
-                    p: 4,
-                    textAlign: 'center',
-                    opacity: 0.7
-                  }}>
-                    <ChatIcon sx={{ fontSize: 80, mb: 3, color: 'primary.main' }} />
-                    <Typography variant="h5" color="primary.light" gutterBottom>
-                      Welcome to the Discussion Phase
-                    </Typography>
-                    <Typography variant="body1" sx={{ mb: 2, fontSize: '1.1rem' }}>
-                      Your conversation with the agents will appear here.
-                    </Typography>
-                    <Typography variant="body2" sx={{ mt: 1, mb: 3, maxWidth: '80%' }}>
-                      Please wait while the system initializes the discussion...
-                    </Typography>
-                    
-                    {/* Add force refresh button */}
-                    <Button 
-                      variant="outlined" 
-                      color="primary"
-                      onClick={() => {
-                        // Force refresh initialization
-                        console.log("Manual refresh triggered");
-                        localStorage.removeItem('phase2_discussion_initialized');
-                        localStorage.removeItem('discussionInitialized');
-                        localStorage.removeItem('introCompleted');
-                        dispatch({ type: 'INITIALIZE_AI_CHOICES' });
-                        setTimeout(() => initializeDiscussion(), 200);
-                      }}
-                      sx={{ mt: 2 }}
-                    >
-                      Start Discussion
-                    </Button>
-                  </Box>
-                ) : (
-                  // Show messages when they're available
-                  <AnimatePresence>
-                    {messages.map((msg, index) => (
-                      <motion.div
-                        key={index}
-                        initial={{ opacity: 0, x: msg.isUser ? 20 : -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.3 }}
-                      >
-                        {msg.isUser ? (
-                          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-                            <Paper
-                              sx={{
-                                p: 2,
-                                bgcolor: 'primary.main',
-                                color: 'white',
-                                borderRadius: '12px 12px 0 12px',
-                                maxWidth: '80%'
-                              }}
-                            >
-                              <Typography variant="body1">{msg.text}</Typography>
-                            </Paper>
-                          </Box>
-                        ) : (
-                          msg.agent ? (
-                            <AgentMessage agent={msg.agent} message={msg.text} alignRight={false} />
-                          ) : (
-                            // For system messages that don't have an agent
-                            <Box sx={{ display: 'flex', mb: 2, maxWidth: '80%' }}>
-                              <Avatar
-                                sx={{
-                                  mr: 1,
-                                  bgcolor: 'primary.dark',
-                                  boxShadow: '0 3px 6px rgba(0,0,0,0.2)'
-                                }}
-                              >
-                                S
-                              </Avatar>
-                              <motion.div
-                                initial={{ scale: 0.96 }}
-                                animate={{ scale: 1 }}
-                                transition={{ duration: 0.2 }}
-                              >
-                                <Paper
-                                  sx={{
-                                    p: 2,
-                                    borderRadius: '12px',
-                                    bgcolor: 'rgba(30, 30, 60, 0.8)',
-                                    color: 'white',
-                                    boxShadow: '0 3px 10px rgba(0,0,0,0.25)'
-                                  }}
-                                >
-                                  <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 0.5 }}>
-                                    System
-                                  </Typography>
-                                  <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-                                    {msg.text}
-                                  </Typography>
-                                </Paper>
-                              </motion.div>
-                            </Box>
-                          )
-                        )}
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                )}
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontSize: '0.85rem' }}>
+                  Remaining budget: <span style={{ fontWeight: 'bold', color: theme.palette.primary.main }}>{user.remainingBudget}</span> of 14 units
+                </Typography>
                 
-                {processingResponse && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 2 }}>
-                      <Paper
-                        elevation={1}
-                        sx={{
-                          p: 2,
-                          backgroundColor: 'background.paper',
-                          borderRadius: '15px 15px 15px 0',
-                        }}
-                      >
-                        <Typography variant="body1" sx={{ display: 'flex', alignItems: 'center' }}>
-                          <CircularProgress size={20} sx={{ mr: 1 }} />
-                          Typing...
-                        </Typography>
-                      </Paper>
-                    </Box>
-                  </motion.div>
-                )}
+                <LinearProgress 
+                  variant="determinate" 
+                  value={(user.remainingBudget / 14) * 100} 
+                  sx={{ height: 8, borderRadius: 4 }}
+                />
               </Paper>
-              
-              {/* Input area */}
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.3, duration: 0.5 }}
-              >
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <IconButton
-                    color={isRecording ? "error" : "primary"}
-                    onClick={toggleVoiceInput}
-                    disabled={discussionStep === 'voting' || processingResponse}
-                    sx={{ 
-                      p: 1.5,
-                      border: isRecording ? '2px solid #f44336' : '1px solid rgba(255, 255, 255, 0.1)',
-                      borderRadius: '50%',
-                      backgroundColor: isRecording ? 'rgba(244, 67, 54, 0.1)' : 'rgba(25, 118, 210, 0.05)',
-                      '&:hover': {
-                        backgroundColor: isRecording ? 'rgba(244, 67, 54, 0.2)' : 'rgba(25, 118, 210, 0.1)',
-                      }
-                    }}
-                  >
-                    <MicIcon sx={{ fontSize: { xs: '1.5rem', md: '1.8rem' } }} />
-                  </IconButton>
-                  
-                  <TextField
-                    fullWidth
-                    variant="outlined"
-                    placeholder={isRecording ? "Listening..." : "Type your message here..."}
-                    value={userInput}
-                    onChange={(e) => setUserInput(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
-                    }}
-                    disabled={discussionStep === 'voting' || processingResponse || isRecording}
-                    InputProps={{
-                      sx: { 
-                        borderRadius: 4,
-                        fontSize: '1.1rem',
-                        backgroundColor: 'rgba(30, 30, 60, 0.4)',
-                        '& .MuiOutlinedInput-notchedOutline': {
-                          borderColor: isRecording ? '#f44336' : 'rgba(255, 255, 255, 0.1)'
-                        },
-                        '&:hover .MuiOutlinedInput-notchedOutline': {
-                          borderColor: isRecording ? '#f44336' : 'rgba(255, 255, 255, 0.3)'
-                        },
-                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                          borderColor: isRecording ? '#f44336' : theme.palette.primary.main
-                        }
-                      }
-                    }}
-                  />
-                  <IconButton
-                    color="primary"
-                    onClick={handleSendMessage}
-                    disabled={!userInput.trim() || discussionStep === 'voting' || processingResponse}
-                    sx={{ 
-                      p: 1.5,
-                      border: '1px solid rgba(255, 255, 255, 0.1)', 
-                      borderRadius: '50%',
-                      backgroundColor: 'rgba(25, 118, 210, 0.05)',
-                      '&:hover': {
-                        backgroundColor: 'rgba(25, 118, 210, 0.1)',
-                      }
-                    }}
-                  >
-                    <SendIcon sx={{ fontSize: { xs: '1.5rem', md: '1.8rem' } }} />
-                  </IconButton>
-                </Box>
-              </motion.div>
             </Box>
           </Box>
         </Box>
