@@ -60,6 +60,26 @@ export const agentProfiles: Agent[] = [
     isAlly: true,
     avatar: "/avatars/maria-gonzalez.png",
     remainingBudget: 14
+  },
+  {
+    id: 4,
+    name: "James Taylor",
+    age: 38,
+    occupation: "Government Official",
+    education: "Master's in Public Administration",
+    socioeconomicStatus: "Middle class",
+    politicalStance: "Moderate",
+    bio: "A pragmatic policy expert who seeks balanced solutions that address the needs of all stakeholders.",
+    policyChoices: {
+      1: 2, // Mixed Classrooms
+      2: 2, // Targeted Language Programs
+      3: 2, // Specialized Trauma Support
+      4: 2, // Parent Engagement
+      5: 2  // Multilingual Resources
+    },
+    isAlly: true,
+    avatar: "/avatars/james-taylor.png",
+    remainingBudget: 14
   }
 ];
 

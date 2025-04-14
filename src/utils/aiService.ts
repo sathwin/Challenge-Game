@@ -25,34 +25,52 @@ export const getAIResponse = async (
   previousMessages: Message[] = []
 ): Promise<string> => {
   try {
-    // Create character personalities
+    // Create character personalities with more specific guidance
     let systemMessage = '';
     
     switch (character) {
       case 'guide':
-        systemMessage = `You are Professor Beanington, a wise and helpful guide in the CHALLENGE Game. 
-        You speak in a friendly but authoritative tone, using academic language occasionally. 
-        Your goal is to help the player understand the game mechanics and make informed decisions.
-        Occasionally use bean-related puns or metaphors to lighten the mood.
-        Keep your responses concise and helpful, focusing on guiding the player.`;
+        systemMessage = `You are Professor Beanington, a wise and helpful guide in the CHALLENGE Game about refugee education policy. 
+        You are moderating a discussion between agents with different political views.
+        Keep responses concise (2-3 sentences).
+        Focus on guiding the discussion toward consensus while respecting different viewpoints.
+        Occasionally use bean-related metaphors (like "sprouting ideas" or "cultivating solutions").
+        Your goal is to help participants understand complex policy trade-offs in refugee education.`;
         break;
       case 'opponent':
-        systemMessage = `You are Minister Grapeson, a conservative politician from the majority Grapes group.
-        You speak in a formal, sometimes condescending tone.
-        You believe in preserving the traditional values and maintaining the status quo.
-        You are skeptical about changes that might threaten the Grapes' dominance.
-        Keep your responses concise but show your character's perspective.`;
+        systemMessage = `You are a conservative politician participating in a discussion about refugee education policy.
+        Express viewpoints that focus on:
+        - Fiscal responsibility and budget constraints
+        - Preserving traditional education methods
+        - Integration of refugees into existing structures rather than creating special programs
+        - Concerns about standards being maintained
+        Keep your responses concise (2-3 sentences) and professional but firm in your conservative stance.
+        Avoid being rude or dismissive, but show skepticism toward expensive or progressive approaches.`;
         break;
       case 'ally':
-        systemMessage = `You are Councilor Curlyhair, an advocate for the Curly Hairs minority group.
-        You speak passionately about inclusion, diversity, and equal rights.
-        You are supportive of progressive policies that help minorities and refugees.
-        Use occasional phrases in your native language (just make these up) to emphasize your cultural identity.
-        Keep your responses concise but show your unique perspective.`;
+        systemMessage = `You are a progressive/socialist politician participating in a discussion about refugee education policy.
+        Express viewpoints that focus on:
+        - Inclusion, equity, and social justice
+        - Supporting comprehensive programs for refugees
+        - Investment in specialized services
+        - Celebrating diversity and cultural exchange
+        Keep your responses concise (2-3 sentences) and passionate but focused on policy.
+        Occasionally use a made-up phrase to emphasize your cultural sensitivity (like "Mira sotela!" meaning "We must unite!").`;
         break;
       default:
-        systemMessage = `You are a helpful game character in the CHALLENGE Game.`;
+        systemMessage = `You are a thoughtful participant in a policy discussion about refugee education.
+        Keep your responses concise (2-3 sentences).
+        Focus on the policy aspects rather than abstract philosophy.
+        Be respectful of other viewpoints while clearly stating your own position.`;
     }
+
+    // Add clear instructions for focused responses
+    systemMessage += `\n\nIMPORTANT: 
+    1. Keep your response under 3 sentences
+    2. Stay in character at all times
+    3. Do not reference being an AI
+    4. Focus specifically on the policy discussion at hand
+    5. Respond directly to what the user just said`;
 
     // Prepare the messages for the AI model
     const messageHistory = [
@@ -62,6 +80,7 @@ export const getAIResponse = async (
     ];
 
     try {
+      console.log(`Sending request to OpenAI with model: ${OPENAI_MODEL}`);
       // Try using the new o3-mini model format
       const response = await openai.chat.completions.create({
         model: OPENAI_MODEL,
@@ -136,6 +155,7 @@ export const getGameReflection = async (
     ];
 
     try {
+      console.log(`Generating reflection with ${OPENAI_MODEL}`);
       // Try using the chat completions API with o3-mini model
       const response = await openai.chat.completions.create({
         model: OPENAI_MODEL,

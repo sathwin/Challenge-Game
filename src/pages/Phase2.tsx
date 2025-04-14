@@ -32,13 +32,25 @@ import { generateOpeningStatement, generatePolicyResponse, generateConsensusMess
 import { getAIResponse } from '../utils/aiService';
 import { PolicyCategory } from '../types';
 
-// Mock SpeechRecognition for demo purposes
-const mockSpeechRecognition = {
-  start: () => console.log('Speech recognition started'),
-  stop: () => console.log('Speech recognition stopped'),
-  onresult: null as any,
-  onend: null as any
-};
+// Fix the SpeechRecognition type errors
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
+}
+
+// Create a proper SpeechRecognition implementation
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition: any = null;
+
+// Initialize speech recognition if available
+if (SpeechRecognition) {
+  recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.lang = 'en-US';
+}
 
 interface MessageType {
   id: number;
@@ -77,6 +89,38 @@ const Phase2: React.FC = () => {
   // Calculate the current category being discussed
   const category = policyCategories[currentCategory];
   
+  // Add a useEffect cleanup to fix the state persistence issue
+  useEffect(() => {
+    // Restore scrolling to the top when component mounts
+    window.scrollTo(0, 0);
+    
+    // Cleanup function for when component unmounts
+    return () => {
+      // Clear all localStorage flags to ensure proper reinitialization
+      localStorage.removeItem('discussionInitialized');
+      localStorage.removeItem('introCompleted');
+      sessionStorage.clear();
+    };
+  }, []);
+
+  // Also add a key tracking mechanism to avoid duplicates
+  const [processedKeys, setProcessedKeys] = useState<Set<string>>(new Set());
+
+  // Add this function to track processed agent IDs
+  const markAgentAsProcessed = (agentId: number) => {
+    const key = `agent-intro-${agentId}`;
+    if (!processedKeys.has(key)) {
+      setProcessedKeys(new Set(processedKeys).add(key));
+      return true;
+    }
+    return false;
+  };
+
+  // Add this function to check if an agent has been processed
+  const hasAgentBeenProcessed = (agentId: number) => {
+    return processedKeys.has(`agent-intro-${agentId}`);
+  };
+  
   // Add initial agent introductions
   useEffect(() => {
     if (currentStep === 'intro' && chatContainerRef.current) {
@@ -102,12 +146,15 @@ const Phase2: React.FC = () => {
         // Clear all existing messages
         setMessages([]);
         
-        // Create a single message array to avoid state update issues
+        // Generate a unique message ID
+        const generateUniqueId = () => Date.now() + Math.random() * 1000;
+        
+        // Create initial message array
         const initialMessages: MessageType[] = [];
         
         // Add system intro message
         initialMessages.push({
-          id: Date.now(),
+          id: generateUniqueId(),
           text: "Welcome to the group discussion phase. Each of the AI agents will introduce themselves, and then you can discuss each policy area to reach consensus.",
           sender: 'System',
           isUser: false,
@@ -116,42 +163,66 @@ const Phase2: React.FC = () => {
         
         // Add agent introduction message
         initialMessages.push({
-          id: Date.now() + 1,
+          id: generateUniqueId(),
           text: "Let me introduce you to your discussion partners...",
           sender: 'System',
           isUser: false,
           timestamp: Date.now() + 100
         });
         
-        // Set all initial messages at once to prevent duplicates
+        // Set all initial messages at once
         setMessages(initialMessages);
         
         // Add each agent introduction with a delay
         for (let i = 0; i < agents.length; i++) {
           const agent = agents[i];
+          
+          // Skip if this agent has already been processed
+          if (hasAgentBeenProcessed(agent.id)) continue;
+          
+          // Mark this agent as processed
+          markAgentAsProcessed(agent.id);
+          
           await new Promise(resolve => setTimeout(resolve, 1000));
           
-          // Generate a single introduction for each agent
-          const introText = generateOpeningStatement(agent);
-          
-          const agentMessage: MessageType = {
-            id: Date.now() + Math.random(),
-            text: introText,
-            sender: agent.name,
-            isUser: false,
-            avatar: agent.avatar,
-            timestamp: Date.now()
-          };
-          
-          // Add one message at a time
-          setMessages(prevMessages => [...prevMessages, agentMessage]);
+          try {
+            // Get agent introduction text
+            let introText = '';
+            try {
+              // Try to get AI-generated introduction
+              introText = await generateAIOpeningStatement(agent);
+              console.log(`Generated AI introduction for ${agent.name}`);
+            } catch (error) {
+              console.error(`Error generating AI intro for ${agent.name}:`, error);
+              // Fallback to template-based intro
+              introText = generateOpeningStatement(agent);
+            }
+            
+            // Add agent message
+            const agentMessage: MessageType = {
+              id: generateUniqueId(),
+              text: introText,
+              sender: agent.name,
+              isUser: false,
+              avatar: agent.avatar,
+              timestamp: Date.now()
+            };
+            
+            // Add to messages
+            setMessages(prevMessages => [...prevMessages, agentMessage]);
+            
+            // Short pause between introductions
+            await new Promise(resolve => setTimeout(resolve, 800));
+          } catch (error) {
+            console.error(`Error processing agent ${agent.name}:`, error);
+          }
         }
         
         // Add message to start discussion after all introductions
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         const startDiscussionMessage: MessageType = {
-          id: Date.now() + Math.random(),
+          id: generateUniqueId(),
           text: `Let's begin our discussion with the first policy category: ${policyCategories[0].name}. What are your thoughts on this issue?`,
           sender: 'System',
           isUser: false,
@@ -211,9 +282,12 @@ const Phase2: React.FC = () => {
   const handleSendMessage = async () => {
     if (!userInput.trim()) return;
     
+    // Generate a unique ID for this message
+    const messageId = Date.now() + Math.random() * 1000;
+    
     // Add user message
     const newUserMessage: MessageType = {
-      id: Date.now(),
+      id: messageId,
       text: userInput,
       sender: 'You',
       isUser: true,
@@ -226,14 +300,26 @@ const Phase2: React.FC = () => {
     
     try {
       // Determine which agent should respond based on discussion step
-      // Let's rotate through all agents randomly
-      const agentIndex = Math.floor(Math.random() * agents.length);
-      const respondingAgent = agents[agentIndex];
+      // Let's rotate through all agents randomly but ensure different agents respond
+      const recentRespondents = messages
+        .slice(-3)
+        .filter(m => !m.isUser && m.sender !== 'System')
+        .map(m => m.sender);
+      
+      // Filter out agents who just responded
+      const availableAgents = agents.filter(agent => 
+        !recentRespondents.includes(agent.name)
+      );
+      
+      // If all agents recently responded, just pick randomly
+      const agentPool = availableAgents.length > 0 ? availableAgents : agents;
+      const respondingAgent = agentPool[Math.floor(Math.random() * agentPool.length)];
       
       // Get AI response based on current category and user input
       const promptContext = `The discussion is about ${policyCategories[currentCategory]?.name}. 
       The user said: "${userInput}"
-      Respond as ${respondingAgent.name}, a ${respondingAgent.politicalStance} politician.`;
+      Respond as ${respondingAgent.name}, a ${respondingAgent.politicalStance} politician with a background in ${respondingAgent.occupation}.
+      Keep your response concise (2-3 sentences) and focused on the policy discussion.`;
       
       // Get response from OpenAI API
       let response = '';
@@ -252,7 +338,7 @@ const Phase2: React.FC = () => {
       
       // Add agent response
       const newAgentMessage: MessageType = {
-        id: Date.now() + 1,
+        id: Date.now() + Math.random() * 1000,
         text: response,
         sender: respondingAgent.name,
         isUser: false,
@@ -265,13 +351,14 @@ const Phase2: React.FC = () => {
         setMessages(prev => [...prev, newAgentMessage]);
         setProcessingResponse(false);
         
-        // After 2-3 messages, prompt for voting on the current policy
-        const currentMessageCount = messages.length + 2; // +2 for the messages we just added
-        if (currentMessageCount >= 5 && discussionStep !== 'voting') {
+        // After a certain number of messages, prompt for voting on the current policy
+        const userMessagesCount = messages.filter(m => m.isUser).length;
+        
+        if (userMessagesCount >= 2 && currentStep !== 'voting') {
           setTimeout(() => {
             // Add voting prompt message
             const votingPromptMessage: MessageType = {
-              id: Date.now() + 2,
+              id: Date.now() + Math.random() * 1000,
               text: `We've had a good discussion about ${policyCategories[currentCategory].name}. Shall we proceed to voting on this policy?`,
               sender: 'System',
               isUser: false,
@@ -290,47 +377,147 @@ const Phase2: React.FC = () => {
     }
   };
   
-  // Handle voice input toggle
+  // Enhanced voice input toggle with better feedback
   const toggleVoiceInput = () => {
+    if (!recognition) {
+      // Speech recognition not available
+      alert("Speech recognition is not supported in your browser. Please try using Chrome.");
+      return;
+    }
+    
     if (isRecording) {
       // Stop recording
       setIsRecording(false);
-      mockSpeechRecognition.stop();
+      try {
+        recognition.stop();
+        console.log("Speech recognition stopped manually");
+      } catch (error) {
+        console.error("Error stopping speech recognition:", error);
+      }
     } else {
       // Start recording
       setIsRecording(true);
-      mockSpeechRecognition.start();
       
-      // Mock speech recognition result
-      setTimeout(() => {
-        setUserInput("I believe we should prioritize equal access to education and comprehensive support for refugee students, even if it means making tough choices in other areas.");
+      // Reset handlers to avoid duplicates
+      if (recognition.onresult) recognition.onresult = null;
+      if (recognition.onerror) recognition.onerror = null;
+      if (recognition.onend) recognition.onend = null;
+      
+      // Set up the handlers
+      recognition.onresult = (event: any) => {
+        console.log("Speech recognition result:", event);
+        if (event.results && event.results.length > 0) {
+          const transcript = event.results[0][0].transcript;
+          console.log("Recognized speech:", transcript);
+          
+          // Update user input with the recognized text
+          setUserInput(prevInput => {
+            const trimmedPrev = prevInput.trim();
+            const newValue = trimmedPrev 
+              ? `${trimmedPrev} ${transcript}`
+              : transcript;
+            return newValue;
+          });
+        }
+      };
+      
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        // Add a user-friendly message for permission issues
+        if (event.error === 'not-allowed') {
+          setUserInput(prevInput => 
+            prevInput + " (Please enable microphone permissions to use voice input.)"
+          );
+        }
         setIsRecording(false);
-      }, 2000);
+      };
+      
+      recognition.onend = () => {
+        console.log("Speech recognition ended naturally");
+        setIsRecording(false);
+      };
+      
+      // Start listening
+      try {
+        recognition.start();
+        console.log("Speech recognition started successfully");
+        
+        // We'll also set a backup timer to stop recording after 10 seconds
+        // in case the onend event doesn't fire for some reason
+        setTimeout(() => {
+          if (isRecording) {
+            console.log("Backup timer stopping speech recognition");
+            setIsRecording(false);
+            try {
+              recognition.stop();
+            } catch (error) {
+              console.error("Error stopping speech recognition from timer:", error);
+            }
+          }
+        }, 10000);
+        
+      } catch (error) {
+        console.error("Error starting speech recognition:", error);
+        setIsRecording(false);
+        alert("There was an error starting speech recognition. Please try again.");
+      }
     }
   };
   
-  // Handle voting process
+  // Improved vote handling to ensure all agents participate
   const handleVote = () => {
     setProcessingVotes(true);
     
     // Collect votes from user and all agents
     const newVotes: Record<number, number> = {};
     
-    // User's vote
+    // User's vote - use their selected policy
     const userChoice = user.policyChoices[category.id];
     if (userChoice) {
       newVotes[userChoice] = 1;
+      console.log(`User voted for option ${userChoice} in category ${category.name}`);
     }
     
-    // Agent votes
+    // Agent votes - make sure each agent casts a vote based on their preferences
     agents.forEach(agent => {
+      // Check if agent has a preference for this category
       const agentChoice = agent.policyChoices[category.id];
+      
       if (agentChoice) {
         newVotes[agentChoice] = (newVotes[agentChoice] || 0) + 1;
+        console.log(`${agent.name} voted for option ${agentChoice} in category ${category.name}`);
+      } else {
+        // If agent doesn't have a preference, assign one based on political stance
+        let fallbackChoice = 2; // Default to middle option
+        
+        switch (agent.politicalStance) {
+          case 'Conservative':
+            fallbackChoice = 1; // Lowest cost option
+            break;
+          case 'Progressive':
+          case 'Socialist':
+            fallbackChoice = 3; // Highest investment option
+            break;
+          default:
+            fallbackChoice = 2; // Moderate option
+        }
+        
+        // Make sure option exists for this category
+        const options = category.options;
+        if (options.some(opt => opt.id === fallbackChoice)) {
+          newVotes[fallbackChoice] = (newVotes[fallbackChoice] || 0) + 1;
+          console.log(`${agent.name} voted for fallback option ${fallbackChoice} in category ${category.name}`);
+        } else if (options.length > 0) {
+          // Just use the first available option
+          const firstOption = options[0].id;
+          newVotes[firstOption] = (newVotes[firstOption] || 0) + 1;
+          console.log(`${agent.name} voted for first available option ${firstOption} in category ${category.name}`);
+        }
       }
     });
     
     setVotes(newVotes);
+    console.log("Final votes:", newVotes);
     
     // Determine the winning option
     let maxVotes = 0;
@@ -351,7 +538,9 @@ const Phase2: React.FC = () => {
       
       if (tiedOptions.length > 1) {
         // Randomly pick from tied options
-        winningOption = tiedOptions[Math.floor(Math.random() * tiedOptions.length)];
+        const randomIndex = Math.floor(Math.random() * tiedOptions.length);
+        winningOption = tiedOptions[randomIndex];
+        console.log(`Tie detected! Randomly selected option ${winningOption} from ${tiedOptions.join(', ')}`);
       }
     }
     
@@ -370,6 +559,21 @@ const Phase2: React.FC = () => {
         const winningOptionDetails = category.options.find(opt => opt.id === winningOption);
         
         if (winningOptionDetails) {
+          // Add result message
+          const votingResultsMessage: MessageType = {
+            id: Date.now() + Math.random() * 1000,
+            text: `Voting results for ${category.name}:\n` + 
+                  Object.entries(newVotes).map(([option, count]) => {
+                    const optionDetails = category.options.find(opt => opt.id === Number(option));
+                    return `- ${optionDetails?.title}: ${count} vote${count !== 1 ? 's' : ''}`;
+                  }).join('\n'),
+            sender: 'System',
+            isUser: false,
+            timestamp: Date.now()
+          };
+          
+          setMessages(prevMessages => [...prevMessages, votingResultsMessage]);
+          
           // Add consensus message using AI if possible
           let consensusText = "";
           try {
@@ -384,11 +588,11 @@ const Phase2: React.FC = () => {
           }
           
           const consensusMessage: MessageType = {
-            id: Date.now() + 4,
+            id: Date.now() + Math.random() * 1000,
             text: consensusText,
             sender: 'System',
             isUser: false,
-            timestamp: Date.now()
+            timestamp: Date.now() + 100
           };
           
           setMessages(prevMessages => [...prevMessages, consensusMessage]);
@@ -404,7 +608,7 @@ const Phase2: React.FC = () => {
               
               // Add message about the next category
               const nextCategoryMessage: MessageType = {
-                id: Date.now() + 5,
+                id: Date.now() + Math.random() * 1000,
                 text: `Let's move on to the next policy category: ${policyCategories[nextCategoryIndex].name}. What are your thoughts on this issue?`,
                 sender: 'System',
                 isUser: false,
@@ -416,7 +620,7 @@ const Phase2: React.FC = () => {
               // We've finished all categories
               setCurrentStep('results');
             }
-          }, 1000);
+          }, 2000);
         }
       }
     }, 1500);
@@ -443,31 +647,26 @@ const Phase2: React.FC = () => {
     }
   };
   
-  // Add a cleanup function for when the component unmounts or phase changes
-  useEffect(() => {
-    return () => {
-      // Clear the initialization flag when leaving this phase
-      if (state.phase !== 'phase2') {
-        localStorage.removeItem('discussionInitialized');
-        sessionStorage.clear(); // Clear all cached responses
-      }
-    };
-  }, [state.phase]);
-  
   return (
-    <Container maxWidth="lg">
+    <Container maxWidth="xl">
       <Box sx={{ my: 4 }}>
-        <Typography variant="h4" align="center" gutterBottom sx={{ 
+        <Typography variant="h3" align="center" gutterBottom sx={{ 
           mb: 1,
           color: theme.palette.primary.light,
-          textShadow: '0 0 10px rgba(139, 221, 255, 0.5)',
-          letterSpacing: '0.05em',
-          fontWeight: 'bold'
+          textShadow: '0 0 10px rgba(139, 221, 255, 0.5), 0 0 20px rgba(139, 221, 255, 0.3)',
+          letterSpacing: '0.08em',
+          fontWeight: 'bold',
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: { xs: '1.5rem', sm: '1.8rem', md: '2.2rem' }
         }}>
           Phase II: Group Discussion & Consensus Building
         </Typography>
         
-        <Typography variant="h6" align="center" gutterBottom sx={{ mb: 3, color: theme.palette.text.secondary }}>
+        <Typography variant="h6" align="center" gutterBottom sx={{ 
+          mb: 3, 
+          color: theme.palette.text.secondary,
+          fontSize: { xs: '0.9rem', sm: '1rem', md: '1.1rem' }
+        }}>
           Discuss your policy choices with AI agents and reach consensus through voting.
         </Typography>
 
@@ -476,29 +675,84 @@ const Phase2: React.FC = () => {
           display: 'flex', 
           justifyContent: 'center', 
           mb: 4, 
-          p: 2, 
+          p: 3, 
           backgroundImage: 'linear-gradient(to right, rgba(20, 20, 30, 0.8), rgba(30, 30, 50, 0.8), rgba(20, 20, 30, 0.8))',
           borderRadius: '12px',
           border: `1px solid rgba(139, 221, 255, 0.2)`,
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2), 0 0 20px rgba(139, 221, 255, 0.1)',
+          padding: { xs: '10px', md: '16px' },
         }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', mx: 2, opacity: currentStep === 'intro' ? 1 : 0.5 }}>
-            <GroupsIcon sx={{ mr: 1, color: theme.palette.primary.main }} />
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            mx: 2, 
+            opacity: currentStep === 'intro' ? 1 : 0.5,
+            flexDirection: { xs: 'column', sm: 'row' },
+            minWidth: { xs: '60px', sm: 'auto' }
+          }}>
+            <GroupsIcon sx={{ 
+              mr: { xs: 0, sm: 1 }, 
+              mb: { xs: 1, sm: 0 },
+              color: theme.palette.primary.main,
+              fontSize: { xs: '1.5rem', md: '1.8rem' }
+            }} />
             <Typography variant="body2" color="text.secondary">Introduction</Typography>
           </Box>
-          <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-          <Box sx={{ display: 'flex', alignItems: 'center', mx: 2, opacity: currentStep === 'discussion' ? 1 : 0.5 }}>
-            <ChatIcon sx={{ mr: 1, color: theme.palette.primary.main }} />
+          <Divider orientation="vertical" flexItem sx={{ mx: 1, display: { xs: 'none', sm: 'block' } }} />
+          <Divider orientation="horizontal" sx={{ my: 1, width: '100%', display: { xs: 'block', sm: 'none' } }} />
+          
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            mx: 2, 
+            opacity: currentStep === 'discussion' ? 1 : 0.5,
+            flexDirection: { xs: 'column', sm: 'row' },
+            minWidth: { xs: '60px', sm: 'auto' }
+          }}>
+            <ChatIcon sx={{ 
+              mr: { xs: 0, sm: 1 }, 
+              mb: { xs: 1, sm: 0 },
+              color: theme.palette.primary.main,
+              fontSize: { xs: '1.5rem', md: '1.8rem' }
+            }} />
             <Typography variant="body2" color="text.secondary">Discussion</Typography>
           </Box>
-          <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-          <Box sx={{ display: 'flex', alignItems: 'center', mx: 2, opacity: currentStep === 'voting' ? 1 : 0.5 }}>
-            <HowToVoteIcon sx={{ mr: 1, color: theme.palette.primary.main }} />
+          <Divider orientation="vertical" flexItem sx={{ mx: 1, display: { xs: 'none', sm: 'block' } }} />
+          <Divider orientation="horizontal" sx={{ my: 1, width: '100%', display: { xs: 'block', sm: 'none' } }} />
+          
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            mx: 2, 
+            opacity: currentStep === 'voting' ? 1 : 0.5,
+            flexDirection: { xs: 'column', sm: 'row' },
+            minWidth: { xs: '60px', sm: 'auto' }
+          }}>
+            <HowToVoteIcon sx={{ 
+              mr: { xs: 0, sm: 1 }, 
+              mb: { xs: 1, sm: 0 },
+              color: theme.palette.primary.main,
+              fontSize: { xs: '1.5rem', md: '1.8rem' }
+            }} />
             <Typography variant="body2" color="text.secondary">Voting</Typography>
           </Box>
-          <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-          <Box sx={{ display: 'flex', alignItems: 'center', mx: 2, opacity: currentStep === 'results' ? 1 : 0.5 }}>
-            <CheckCircleIcon sx={{ mr: 1, color: theme.palette.primary.main }} />
+          <Divider orientation="vertical" flexItem sx={{ mx: 1, display: { xs: 'none', sm: 'block' } }} />
+          <Divider orientation="horizontal" sx={{ my: 1, width: '100%', display: { xs: 'block', sm: 'none' } }} />
+          
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            mx: 2, 
+            opacity: currentStep === 'results' ? 1 : 0.5,
+            flexDirection: { xs: 'column', sm: 'row' },
+            minWidth: { xs: '60px', sm: 'auto' }
+          }}>
+            <CheckCircleIcon sx={{ 
+              mr: { xs: 0, sm: 1 }, 
+              mb: { xs: 1, sm: 0 },
+              color: theme.palette.primary.main,
+              fontSize: { xs: '1.5rem', md: '1.8rem' }
+            }} />
             <Typography variant="body2" color="text.secondary">Results</Typography>
           </Box>
         </Box>
@@ -518,13 +772,15 @@ const Phase2: React.FC = () => {
               borderRadius: '8px',
               boxShadow: `0 5px 15px rgba(0, 0, 0, 0.3), 0 0 20px rgba(139, 221, 255, 0.2)`
             }}>
-              <Typography variant="h6" gutterBottom color="primary" sx={{ 
+              <Typography variant="h5" gutterBottom color="primary" sx={{ 
                 display: 'flex', 
                 alignItems: 'center',
                 pb: 1,
-                borderBottom: `1px solid ${theme.palette.divider}`
+                borderBottom: `1px solid ${theme.palette.divider}`,
+                fontFamily: '"Pixelify Sans", monospace',
+                fontSize: { xs: '1.3rem', md: '1.5rem' }
               }}>
-                <HowToVoteIcon sx={{ mr: 1 }} />
+                <HowToVoteIcon sx={{ mr: 1, fontSize: { xs: '1.4rem', md: '1.6rem' } }} />
                 Your Policy Selections
               </Typography>
               
@@ -543,20 +799,22 @@ const Phase2: React.FC = () => {
                         display: 'flex', 
                         justifyContent: 'space-between', 
                         alignItems: 'center',
-                        p: 1,
+                        p: 1.5,
                         borderRadius: '4px',
                         backgroundColor: isActiveCategory ? 'rgba(139, 221, 255, 0.1)' : 'transparent',
-                        border: isActiveCategory ? `1px solid ${theme.palette.primary.main}` : 'none'
+                        border: isActiveCategory ? `1px solid ${theme.palette.primary.main}` : 'none',
+                        fontSize: { xs: '0.9rem', md: '1rem' }
                       }}
                     >
-                      <Typography variant="body2">{cat.name}</Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 'medium' }}>{cat.name}</Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         {option && (
                           <Typography 
                             variant="body2" 
                             sx={{ 
                               fontWeight: 'bold',
-                              color: isActiveCategory ? theme.palette.primary.light : 'inherit'
+                              color: isActiveCategory ? theme.palette.primary.light : 'inherit',
+                              fontSize: { xs: '0.85rem', md: '0.95rem' }
                             }}
                           >
                             {option.title}
@@ -577,9 +835,13 @@ const Phase2: React.FC = () => {
                 p: 3, 
                 mb: 3, 
                 borderLeft: `4px solid ${theme.palette.secondary.main}`,
-                backgroundColor: 'rgba(30, 30, 45, 0.95)'
+                backgroundColor: 'rgba(30, 30, 45, 0.95)',
+                boxShadow: '0 5px 15px rgba(0, 0, 0, 0.3)'
               }}>
-                <Typography variant="h6" gutterBottom color="secondary">
+                <Typography variant="h5" gutterBottom color="secondary" sx={{
+                  fontFamily: '"Pixelify Sans", monospace',
+                  fontSize: { xs: '1.3rem', md: '1.5rem' }
+                }}>
                   Vote on {category?.name}
                 </Typography>
                 
@@ -596,7 +858,12 @@ const Phase2: React.FC = () => {
                     color="secondary" 
                     fullWidth 
                     onClick={handleVote}
-                    sx={{ mt: 2 }}
+                    sx={{ 
+                      mt: 2,
+                      py: 1.5,
+                      fontSize: '1rem',
+                      fontWeight: 'bold'
+                    }}
                   >
                     Submit Votes
                   </Button>
@@ -608,12 +875,17 @@ const Phase2: React.FC = () => {
               <Paper elevation={3} sx={{
                 p: 3,
                 borderLeft: `4px solid ${theme.palette.success.main}`,
-                backgroundColor: 'rgba(30, 30, 45, 0.95)'
+                backgroundColor: 'rgba(30, 30, 45, 0.95)',
+                boxShadow: '0 5px 15px rgba(0, 0, 0, 0.3)'
               }}>
-                <Typography variant="h6" gutterBottom color="success.light" sx={{ mb: 2 }}>
+                <Typography variant="h5" gutterBottom color="success.light" sx={{ 
+                  mb: 2,
+                  fontFamily: '"Pixelify Sans", monospace',
+                  fontSize: { xs: '1.3rem', md: '1.5rem' }
+                }}>
                   Discussion Complete
                 </Typography>
-                <Typography variant="body2" paragraph>
+                <Typography variant="body1" paragraph>
                   Your group has successfully discussed and voted on all policy categories.
                 </Typography>
                 <Button 
@@ -621,7 +893,12 @@ const Phase2: React.FC = () => {
                   color="success" 
                   fullWidth 
                   onClick={handleProceedToPhase3}
-                  sx={{ mt: 2 }}
+                  sx={{ 
+                    mt: 2,
+                    py: 1.5,
+                    fontSize: '1rem',
+                    fontWeight: 'bold'
+                  }}
                 >
                   Proceed to Phase III
                 </Button>
@@ -633,47 +910,68 @@ const Phase2: React.FC = () => {
               p: 3, 
               mt: 3, 
               borderLeft: `4px solid ${theme.palette.info.main}`,
-              backgroundColor: 'rgba(30, 30, 45, 0.95)'
+              backgroundColor: 'rgba(30, 30, 45, 0.95)',
+              boxShadow: '0 5px 15px rgba(0, 0, 0, 0.3)'
             }}>
-              <Typography variant="h6" gutterBottom color="info.light" sx={{ 
+              <Typography variant="h5" gutterBottom color="info.light" sx={{ 
                 display: 'flex', 
                 alignItems: 'center',
                 pb: 1,
-                borderBottom: `1px solid ${theme.palette.divider}`
+                borderBottom: `1px solid ${theme.palette.divider}`,
+                fontFamily: '"Pixelify Sans", monospace',
+                fontSize: { xs: '1.3rem', md: '1.5rem' }
               }}>
                 <GroupsIcon sx={{ mr: 1 }} />
                 Discussion Group
               </Typography>
               
-              <Stack spacing={1} sx={{ mt: 2 }}>
+              <Stack spacing={2} sx={{ mt: 2 }}>
                 {agents.map(agent => (
                   <Box key={agent.id} sx={{ 
                     display: 'flex', 
-                    alignItems: 'center', 
-                    p: 1,
-                    borderRadius: '4px'
+                    alignItems: 'center',
+                    p: 1.5,
+                    borderRadius: '8px',
+                    backgroundColor: 'rgba(50, 50, 70, 0.3)',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      backgroundColor: 'rgba(50, 50, 70, 0.5)',
+                      transform: 'translateY(-2px)'
+                    }
                   }}>
-                    <Box 
+                    <Avatar 
+                      src={agent.avatar} 
                       sx={{ 
-                        width: 32, 
-                        height: 32, 
-                        borderRadius: '50%', 
-                        display: 'flex', 
-                        justifyContent: 'center', 
-                        alignItems: 'center',
-                        mr: 1.5,
-                        backgroundColor: agent.politicalStance.toLowerCase() === 'conservative' ? '#0047AB' :
-                                        agent.politicalStance.toLowerCase() === 'liberal' ? '#00BFFF' :
-                                        agent.politicalStance.toLowerCase() === 'socialist' ? '#DC143C' : '#9370DB'
+                        width: { xs: 40, md: 48 }, 
+                        height: { xs: 40, md: 48 }, 
+                        mr: 2,
+                        border: '2px solid',
+                        borderColor: agent.politicalStance.toLowerCase() === 'conservative' ? '#0047AB' :
+                                    agent.politicalStance.toLowerCase() === 'liberal' ? '#00BFFF' :
+                                    agent.politicalStance.toLowerCase() === 'socialist' ? '#DC143C' : '#9370DB'
                       }}
                     >
                       {agent.name.charAt(0)}
-                    </Box>
+                    </Avatar>
                     <Box>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
+                      <Typography variant="body1" sx={{ fontWeight: 'bold', lineHeight: 1.2, mb: 0.5 }}>
                         {agent.name}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1 }}>
+                      <Typography 
+                        variant="caption" 
+                        sx={{ 
+                          lineHeight: 1,
+                          backgroundColor: agent.politicalStance.toLowerCase() === 'conservative' ? 'rgba(0, 71, 171, 0.2)' :
+                                          agent.politicalStance.toLowerCase() === 'liberal' ? 'rgba(0, 191, 255, 0.2)' :
+                                          agent.politicalStance.toLowerCase() === 'socialist' ? 'rgba(220, 20, 60, 0.2)' : 'rgba(147, 112, 219, 0.2)',
+                          borderRadius: '4px',
+                          px: 1,
+                          py: 0.5,
+                          color: agent.politicalStance.toLowerCase() === 'conservative' ? '#0047AB' :
+                                 agent.politicalStance.toLowerCase() === 'liberal' ? '#00BFFF' :
+                                 agent.politicalStance.toLowerCase() === 'socialist' ? '#DC143C' : '#9370DB'
+                        }}
+                      >
                         {agent.politicalStance}
                       </Typography>
                     </Box>
@@ -691,7 +989,7 @@ const Phase2: React.FC = () => {
               overflow: 'auto',
               display: 'flex',
               flexDirection: 'column',
-              height: { xs: '500px', sm: '600px', md: '650px', lg: '700px' },
+              height: { xs: '500px', sm: '600px', md: '700px', lg: '750px' },
               mb: 2,
               borderRadius: '12px',
               border: '1px solid rgba(255, 255, 255, 0.1)',
@@ -709,11 +1007,11 @@ const Phase2: React.FC = () => {
                   textAlign: 'center',
                   opacity: 0.7
                 }}>
-                  <ChatIcon sx={{ fontSize: 60, mb: 2, color: 'primary.main' }} />
-                  <Typography variant="h6" color="primary.light" gutterBottom>
+                  <ChatIcon sx={{ fontSize: 80, mb: 3, color: 'primary.main' }} />
+                  <Typography variant="h5" color="primary.light" gutterBottom>
                     Welcome to the Discussion Phase
                   </Typography>
-                  <Typography variant="body1">
+                  <Typography variant="body1" sx={{ mb: 2, fontSize: '1.1rem' }}>
                     Your conversation with the agents will appear here.
                   </Typography>
                   <Typography variant="body2" sx={{ mt: 1, maxWidth: '80%' }}>
@@ -729,7 +1027,7 @@ const Phase2: React.FC = () => {
                       display: 'flex',
                       flexDirection: 'row',
                       alignItems: 'flex-start',
-                      mb: 2,
+                      mb: 2.5,
                       justifyContent: message.isUser ? 'flex-end' : 'flex-start',
                     }}
                   >
@@ -738,8 +1036,8 @@ const Phase2: React.FC = () => {
                         src={message.avatar}
                         sx={{ 
                           mr: 1, 
-                          width: 40, 
-                          height: 40,
+                          width: { xs: 40, md: 48 }, 
+                          height: { xs: 40, md: 48 },
                           bgcolor: message.sender === 'System' 
                             ? 'primary.dark'
                             : message.sender === 'Alex'
@@ -748,14 +1046,15 @@ const Phase2: React.FC = () => {
                             ? '#0047AB'
                             : message.sender === 'Morgan'
                             ? '#DC143C'
-                            : '#9370DB'
+                            : '#9370DB',
+                          boxShadow: '0 3px 6px rgba(0,0,0,0.2)'
                         }}
                       >
                         {message.sender.charAt(0)}
                       </Avatar>
                     )}
                     <Paper
-                      elevation={1}
+                      elevation={2}
                       sx={{
                         p: 2,
                         maxWidth: '80%',
@@ -768,23 +1067,37 @@ const Phase2: React.FC = () => {
                         borderRadius: message.isUser
                           ? '15px 15px 0 15px'
                           : '15px 15px 15px 0',
+                        boxShadow: message.isUser
+                          ? '0 4px 12px rgba(25, 118, 210, 0.3)'
+                          : '0 4px 12px rgba(0, 0, 0, 0.15)'
                       }}
                     >
-                      <Typography variant="subtitle2" fontWeight="bold">
+                      <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 0.5 }}>
                         {message.sender}
                       </Typography>
                       <Typography
                         variant="body1"
                         sx={{ 
                           whiteSpace: 'pre-wrap',
-                          fontSize: '1rem'
+                          fontSize: { xs: '0.95rem', md: '1.05rem' },
+                          lineHeight: 1.5
                         }}
                       >
                         {message.text}
                       </Typography>
                     </Paper>
                     {message.isUser && (
-                      <Avatar sx={{ ml: 1, width: 40, height: 40 }}>You</Avatar>
+                      <Avatar 
+                        sx={{ 
+                          ml: 1, 
+                          width: { xs: 40, md: 48 }, 
+                          height: { xs: 40, md: 48 },
+                          backgroundColor: 'primary.dark',
+                          boxShadow: '0 3px 6px rgba(0,0,0,0.2)'
+                        }}
+                      >
+                        You
+                      </Avatar>
                     )}
                   </Box>
                 ))
@@ -800,7 +1113,7 @@ const Phase2: React.FC = () => {
                       borderRadius: '15px 15px 15px 0',
                     }}
                   >
-                    <Typography variant="body1">
+                    <Typography variant="body1" sx={{ display: 'flex', alignItems: 'center' }}>
                       <CircularProgress size={20} sx={{ mr: 1 }} />
                       Typing...
                     </Typography>
@@ -810,11 +1123,28 @@ const Phase2: React.FC = () => {
             </Paper>
             
             {/* Input area */}
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <IconButton
+                color={isRecording ? "error" : "primary"}
+                onClick={toggleVoiceInput}
+                disabled={discussionStep === 'voting' || processingResponse}
+                sx={{ 
+                  p: 1.5,
+                  border: isRecording ? '2px solid #f44336' : '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '50%',
+                  backgroundColor: isRecording ? 'rgba(244, 67, 54, 0.1)' : 'rgba(25, 118, 210, 0.05)',
+                  '&:hover': {
+                    backgroundColor: isRecording ? 'rgba(244, 67, 54, 0.2)' : 'rgba(25, 118, 210, 0.1)',
+                  }
+                }}
+              >
+                <MicIcon sx={{ fontSize: { xs: '1.5rem', md: '1.8rem' } }} />
+              </IconButton>
+              
               <TextField
                 fullWidth
                 variant="outlined"
-                placeholder="Type your message here..."
+                placeholder={isRecording ? "Listening..." : "Type your message here..."}
                 value={userInput}
                 onChange={(e) => setUserInput(e.target.value)}
                 onKeyPress={(e) => {
@@ -823,12 +1153,21 @@ const Phase2: React.FC = () => {
                     handleSendMessage();
                   }
                 }}
-                disabled={discussionStep === 'voting' || processingResponse}
+                disabled={discussionStep === 'voting' || processingResponse || isRecording}
                 InputProps={{
                   sx: { 
                     borderRadius: 4,
-                    fontSize: '1rem',
+                    fontSize: '1.1rem',
                     backgroundColor: 'rgba(30, 30, 60, 0.4)',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: isRecording ? '#f44336' : 'rgba(255, 255, 255, 0.1)'
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: isRecording ? '#f44336' : 'rgba(255, 255, 255, 0.3)'
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: isRecording ? '#f44336' : theme.palette.primary.main
+                    }
                   }
                 }}
               />
@@ -836,9 +1175,17 @@ const Phase2: React.FC = () => {
                 color="primary"
                 onClick={handleSendMessage}
                 disabled={!userInput.trim() || discussionStep === 'voting' || processingResponse}
-                sx={{ ml: 1 }}
+                sx={{ 
+                  p: 1.5,
+                  border: '1px solid rgba(255, 255, 255, 0.1)', 
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(25, 118, 210, 0.05)',
+                  '&:hover': {
+                    backgroundColor: 'rgba(25, 118, 210, 0.1)',
+                  }
+                }}
               >
-                <SendIcon />
+                <SendIcon sx={{ fontSize: { xs: '1.5rem', md: '1.8rem' } }} />
               </IconButton>
             </Box>
           </Box>
