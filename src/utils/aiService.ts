@@ -1,6 +1,8 @@
 import axios from 'axios';
+import OpenAI from 'openai';
 
 const OPENAI_API_KEY = process.env.REACT_APP_OPENAI_API_KEY;
+// Fallback to gpt-4o-mini which is proven to work
 const OPENAI_MODEL = process.env.REACT_APP_OPENAI_MODEL || 'gpt-4o-mini';
 
 interface Message {
@@ -15,6 +17,12 @@ interface OpenAIResponse {
     };
   }[];
 }
+
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: OPENAI_API_KEY,
+  dangerouslyAllowBrowser: true // Enable in browser usage
+});
 
 /**
  * Get a response from the AI character
@@ -54,14 +62,15 @@ export const getAIResponse = async (
         systemMessage = `You are a helpful game character in the CHALLENGE Game.`;
     }
 
-    // Create message history
+    // For simplicity and reliability, let's use the Chat Completions API which is more stable
     const messages: Message[] = [
       { role: 'system', content: systemMessage },
       ...previousMessages,
       { role: 'user', content: prompt }
     ];
 
-    // Call OpenAI API
+    // Call OpenAI API using chat completions endpoint
+    console.log(`Sending request to OpenAI with model: ${OPENAI_MODEL}`);
     const response = await axios.post(
       'https://api.openai.com/v1/chat/completions',
       {
@@ -78,9 +87,13 @@ export const getAIResponse = async (
       }
     );
 
+    console.log('OpenAI response received:', response.status);
     return response.data.choices[0].message.content;
   } catch (error) {
     console.error('Error calling OpenAI API:', error);
+    if (axios.isAxiosError(error) && error.response) {
+      console.error('API Error details:', error.response.data);
+    }
     return "I'm having trouble connecting to my knowledge base. Let's continue with the game!";
   }
 };
@@ -110,6 +123,8 @@ export const getGameReflection = async (
     Keep your tone professional but friendly, and make references to the game's fictional setting.
     Limit your response to about 250 words and ensure it feels like an expert assessment rather than generic praise.`;
 
+    // Use chat completions API as it's more stable
+    console.log('Generating game reflection...');
     const response = await axios.post(
       'https://api.openai.com/v1/chat/completions',
       {
@@ -129,9 +144,13 @@ export const getGameReflection = async (
       }
     );
 
+    console.log('Reflection generated successfully');
     return response.data.choices[0].message.content;
   } catch (error) {
     console.error('Error generating game reflection:', error);
+    if (axios.isAxiosError(error) && error.response) {
+      console.error('API Error details:', error.response.data);
+    }
     return "Thank you for your participation in the CHALLENGE Game. Your policy choices reflect a unique approach to the refugee education challenge in the Republic of Bean. Continue reflecting on these complex issues in your real-world context.";
   }
 }; 

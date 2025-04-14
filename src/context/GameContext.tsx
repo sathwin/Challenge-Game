@@ -12,6 +12,8 @@ const initialAgents: Agent[] = [
     education: "PhD in Social Sciences",
     socioeconomicStatus: "Upper middle class",
     politicalStance: "Liberal",
+    bio: "A thoughtful academic who believes in evidence-based approaches to social issues.",
+    isAlly: true,
     policyChoices: {},
     remainingBudget: 14
   },
@@ -23,6 +25,8 @@ const initialAgents: Agent[] = [
     education: "MBA",
     socioeconomicStatus: "Upper class",
     politicalStance: "Conservative",
+    bio: "A pragmatic business leader who prioritizes fiscal responsibility and traditional values.",
+    isAlly: false,
     policyChoices: {},
     remainingBudget: 14
   },
@@ -34,6 +38,8 @@ const initialAgents: Agent[] = [
     education: "Bachelor's in Social Work",
     socioeconomicStatus: "Lower middle class",
     politicalStance: "Socialist",
+    bio: "An energetic activist dedicated to advocating for marginalized communities and social equity.",
+    isAlly: true,
     policyChoices: {},
     remainingBudget: 14
   },
@@ -45,6 +51,8 @@ const initialAgents: Agent[] = [
     education: "Master's in Public Administration",
     socioeconomicStatus: "Middle class",
     politicalStance: "Moderate",
+    bio: "A balanced policy expert who seeks compromise solutions that can work for diverse stakeholders.",
+    isAlly: true,
     policyChoices: {},
     remainingBudget: 14
   }

@@ -22,7 +22,10 @@ export interface Agent {
   education: string;
   socioeconomicStatus: string;
   politicalStance: string;
+  bio: string;
   policyChoices: Record<number, number>; // category id -> option id
+  isAlly: boolean;
+  avatar?: string;
   remainingBudget: number;
 }
 

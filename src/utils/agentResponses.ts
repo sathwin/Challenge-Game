@@ -1,4 +1,5 @@
 import { Agent, PolicyCategory } from '../types';
+import { getAIResponse } from './aiService';
 
 // Helper function to get a policy option's title and cost by ID
 const getOptionDetails = (category: PolicyCategory, optionId: number) => {
@@ -12,153 +13,159 @@ export const generatePolicyResponse = (
   category: PolicyCategory,
   userChoice: number
 ): string => {
-  // Get the option the user selected
-  const userOption = getOptionDetails(category, userChoice);
+  const { name, politicalStance } = agent;
+  const { name: categoryName } = category;
   
-  // Get the option the agent selected
-  const agentChoice = agent.policyChoices[category.id];
-  const agentOption = agentChoice ? getOptionDetails(category, agentChoice) : null;
-  
-  // If the agent and user agree, generate a supportive response
-  if (agentChoice === userChoice) {
-    return generateAgreementResponse(agent, category, userOption.title);
+  // Generate response based on political stance and the user's choice
+  if (politicalStance === 'Conservative') {
+    if (userChoice === 1) {
+      return `I agree with your choice on ${categoryName}. A conservative approach is what our education system needs. We must be careful not to overextend our resources or disrupt our existing successful frameworks.`;
+    } else if (userChoice === 2) {
+      return `While I appreciate your moderate stance on ${categoryName}, I would prefer a more restrained approach. We need to be cautious about implementing changes that could strain our resources or undermine our educational standards.`;
+    } else {
+      return `I must respectfully disagree with your choice on ${categoryName}. Such progressive policies often come with unforeseen costs and complications. A more measured approach would better serve all stakeholders in our education system.`;
+    }
+  } else if (politicalStance === 'Liberal') {
+    if (userChoice === 1) {
+      return `I understand your cautious approach to ${categoryName}, but I believe we need more progressive measures. Our refugee students deserve greater support to ensure they have equal opportunities to succeed.`;
+    } else if (userChoice === 2) {
+      return `Your balanced approach to ${categoryName} has merit. While I might push for slightly more comprehensive support, I appreciate your commitment to sustainable progress in our education system.`;
+    } else {
+      return `I couldn't agree more with your progressive stance on ${categoryName}. Investing in robust support systems now will yield tremendous benefits for both refugee students and our broader community in the long run.`;
+    }
+  } else if (politicalStance === 'Socialist') {
+    if (userChoice === 1) {
+      return `I strongly disagree with this conservative approach to ${categoryName}. Our refugee population deserves full access to resources and support. We must prioritize equity and inclusion, even if it requires significant investment.`;
+    } else if (userChoice === 2) {
+      return `While your approach to ${categoryName} shows some consideration for refugee needs, I believe we should go further. True equity requires bold action and comprehensive support for those most marginalized in our education system.`;
+    } else {
+      return `Your progressive choice on ${categoryName} aligns perfectly with our values of solidarity and equity! When we invest fully in supporting refugee education, we create a more just and thriving society for everyone.`;
+    }
+  } else { // Moderate or other stances
+    if (userChoice === 1) {
+      return `I see the pragmatic aspects of your conservative approach to ${categoryName}, though I wonder if we might find a middle ground that provides additional support where most needed while remaining fiscally responsible.`;
+    } else if (userChoice === 2) {
+      return `I appreciate your balanced approach to ${categoryName}. Finding this middle ground allows us to improve support for refugee students while maintaining a sustainable system that works for everyone.`;
+    } else {
+      return `Your progressive stance on ${categoryName} is admirable, though we should ensure implementation is practical and sustainable. I support the direction while advocating for measured steps that bring everyone along.`;
+    }
   }
-  
-  // Otherwise, generate a response based on the agent's political stance and the category
-  return generateDisagreementResponse(agent, category, userOption.title, agentOption?.title);
-};
-
-// Generate agreement responses
-const generateAgreementResponse = (agent: Agent, category: PolicyCategory, optionTitle: string): string => {
-  const agreements = [
-    `I completely agree with your choice of ${optionTitle} for ${category.name}. This approach aligns well with my values.`,
-    `We're on the same page regarding ${category.name}. ${optionTitle} is the right way to go.`,
-    `I selected the same option for ${category.name}. ${optionTitle} is a good choice and I support it.`,
-    `It's good to see we agree on ${optionTitle} for ${category.name}. This makes our consensus-building easier.`,
-    `Your choice for ${category.name} is sound. I can fully back ${optionTitle}.`
-  ];
-  
-  return agreements[Math.floor(Math.random() * agreements.length)];
-};
-
-// Generate disagreement responses based on political stance
-const generateDisagreementResponse = (
-  agent: Agent, 
-  category: PolicyCategory, 
-  userOptionTitle: string,
-  agentOptionTitle: string | undefined
-): string => {
-  switch (agent.politicalStance.toLowerCase()) {
-    case 'conservative':
-      return generateConservativeDisagreement(category, userOptionTitle, agentOptionTitle);
-    case 'liberal':
-      return generateLiberalDisagreement(category, userOptionTitle, agentOptionTitle);
-    case 'socialist':
-      return generateSocialistDisagreement(category, userOptionTitle, agentOptionTitle);
-    case 'moderate':
-      return generateModerateDisagreement(category, userOptionTitle, agentOptionTitle);
-    default:
-      return `I have a different view on ${category.name}. I'd prefer ${agentOptionTitle || 'a different approach'}.`;
-  }
-};
-
-// Conservative responses tend to focus on fiscal responsibility, traditional values, and gradual change
-const generateConservativeDisagreement = (
-  category: PolicyCategory, 
-  userOptionTitle: string,
-  agentOptionTitle: string | undefined
-): string => {
-  const conservativeResponses = [
-    `I'm concerned about ${userOptionTitle} for ${category.name}. It seems to require more resources than we can responsibly allocate, especially during economic instability.`,
-    `While I understand the intent behind ${userOptionTitle}, I believe ${agentOptionTitle || 'a more fiscally conservative approach'} would better serve both citizens and refugees without overburdening our systems.`,
-    `I prefer a more measured approach to ${category.name}. ${userOptionTitle} appears too ambitious and could create implementation challenges without proper infrastructure.`,
-    `We need to be prudent with our limited resources. ${userOptionTitle} might promise too much when we need to ensure basic stability first.`,
-    `I believe in gradual integration. ${userOptionTitle} might create rapid changes that could heighten tensions rather than reduce them.`
-  ];
-  
-  return conservativeResponses[Math.floor(Math.random() * conservativeResponses.length)];
-};
-
-// Liberal responses focus on balancing inclusive approaches with pragmatic implementation
-const generateLiberalDisagreement = (
-  category: PolicyCategory, 
-  userOptionTitle: string,
-  agentOptionTitle: string | undefined
-): string => {
-  const liberalResponses = [
-    `I appreciate your perspective on ${category.name}, but I think ${agentOptionTitle || 'a more balanced approach'} offers better outcomes while still being fiscally responsible.`,
-    `${userOptionTitle} has merits, but I wonder if we could find a middle ground that accommodates both refugee needs and system capacity.`,
-    `I see the value in ${userOptionTitle}, though my preference for ${agentOptionTitle || 'an alternative'} stems from trying to balance inclusion with practical implementation.`,
-    `We should aim for sustainable progress in ${category.name}. I'm not convinced ${userOptionTitle} achieves the right balance of ambition and practicality.`,
-    `I believe in progressive but realistic policies. ${userOptionTitle} might need some adjustment to ensure it can be effectively implemented.`
-  ];
-  
-  return liberalResponses[Math.floor(Math.random() * liberalResponses.length)];
-};
-
-// Socialist responses prioritize equal rights, comprehensive support, and systemic change
-const generateSocialistDisagreement = (
-  category: PolicyCategory, 
-  userOptionTitle: string,
-  agentOptionTitle: string | undefined
-): string => {
-  const socialistResponses = [
-    `I strongly believe ${category.name} requires a more transformative approach than ${userOptionTitle}. We need to prioritize equal rights and opportunities for all.`,
-    `${userOptionTitle} doesn't go far enough to address the systemic inequalities in our education system. We should be considering ${agentOptionTitle || 'more inclusive options'}.`,
-    `I can't support ${userOptionTitle} when it continues to privilege citizens over refugees. Education is a human right that should be equally accessible to all.`,
-    `Our commitment should be to comprehensive support for all students, regardless of origin. ${userOptionTitle} falls short of this fundamental value.`,
-    `We have a moral obligation to provide the highest quality education to refugees. ${userOptionTitle} appears to compromise on this principle for budgetary convenience.`
-  ];
-  
-  return socialistResponses[Math.floor(Math.random() * socialistResponses.length)];
-};
-
-// Moderate responses seek compromise and practical implementation
-const generateModerateDisagreement = (
-  category: PolicyCategory, 
-  userOptionTitle: string,
-  agentOptionTitle: string | undefined
-): string => {
-  const moderateResponses = [
-    `I see both advantages and disadvantages to ${userOptionTitle} for ${category.name}. Perhaps we could find a compromise position?`,
-    `While I understand your choice of ${userOptionTitle}, I wonder if ${agentOptionTitle || 'another approach'} might better balance our various concerns.`,
-    `I'm looking for solutions that can gain broad support. ${userOptionTitle} has merits but might face implementation challenges we should consider.`,
-    `There are valid arguments on both sides here. My preference leans toward ${agentOptionTitle || 'a different option'} because it seems more sustainable over time.`,
-    `I believe we need to be pragmatic about ${category.name}. ${userOptionTitle} is an interesting choice, though I would suggest modifications to increase its feasibility.`
-  ];
-  
-  return moderateResponses[Math.floor(Math.random() * moderateResponses.length)];
 };
 
 // Generate general opening statements based on agent profile
 export const generateOpeningStatement = (agent: Agent): string => {
-  switch (agent.politicalStance.toLowerCase()) {
-    case 'conservative':
-      return `As a ${agent.age}-year-old ${agent.occupation} with a background in ${agent.education}, I believe we need to approach refugee education with fiscal responsibility and careful integration. We should prioritize solutions that maintain stability while providing necessary support.`;
-    
-    case 'liberal':
-      return `From my perspective as a ${agent.age}-year-old ${agent.occupation} with ${agent.education}, I believe we should find balanced solutions that promote inclusion while acknowledging practical constraints. I'll support progressive policies that can be effectively implemented.`;
-    
-    case 'socialist':
-      return `With my experience as a ${agent.age}-year-old ${agent.occupation} and my ${agent.education} background, I'm advocating for transformative policies that prioritize equal access and comprehensive support for refugees. Education is a right, not a privilege to be rationed.`;
-    
-    case 'moderate':
-      return `Drawing on my experiences as a ${agent.age}-year-old ${agent.occupation} with ${agent.education}, I'm looking for pragmatic solutions that can gain broad support. I believe in finding common ground and implementing policies that work in practice, not just in theory.`;
-    
-    default:
-      return `As a ${agent.age}-year-old ${agent.occupation}, I'm approaching this discussion with an open mind. My background in ${agent.education} has taught me to consider multiple perspectives before making decisions.`;
+  // Create more engaging personalized introductions based on agent's political stance and background
+  const { name, age, occupation, education, politicalStance } = agent;
+  
+  let introduction = '';
+  
+  if (politicalStance === 'Liberal') {
+    introduction = `Greetings, esteemed colleagues. I am ${name}, a ${age}-year-old ${occupation} with ${education}, and I have the honor of serving as a member of parliament in the Republic of Bean. My political stance is firmly rooted in liberal values, advocating for inclusive policies, particularly in the realm of refugee education. I believe that fostering a nurturing environment for all learners, regardless of their background, is crucial for the enrichment of our society and the growth of our democratic principles. Let us cultivate understanding and opportunity through education!`;
+  } 
+  else if (politicalStance === 'Conservative') {
+    introduction = `Ladies and gentlemen, I am ${name}, a ${age}-year-old ${occupation} with a background in ${education}. As a representative in the Republic of Bean's parliament with conservative principles, I am committed to preserving our traditional values while addressing the challenges of refugee education policy. I believe that any reforms must maintain the integrity of our existing educational system and ensure fiscal responsibility. I look forward to a thoughtful discussion that balances compassion with pragmatism.`;
   }
+  else if (politicalStance === 'Socialist') {
+    introduction = `Hello everyone! I am ${name}, a passionate ${age}-year-old ${occupation} with ${education}. As a proud socialist member of parliament in the Republic of Bean, I advocate tirelessly for the rights of all people, especially our refugee population. I believe education is a fundamental right that must be accessible to everyone regardless of their background. It's time for bold, progressive policies that uplift the marginalized and create a more equitable society for all—because when everyone thrives, our whole community benefits!`;
+  }
+  else { // Moderate or other stances
+    introduction = `Greetings, esteemed colleagues. I am ${name}, a ${age}-year-old ${occupation} with ${education}. As a moderate voice in the Republic of Bean's parliament, I seek balanced approaches to refugee education policy that unite rather than divide. I believe we must find pragmatic solutions that respect our traditions while embracing necessary changes for our evolving society. I look forward to collaborating with all of you to craft thoughtful policies that serve our entire community.`;
+  }
+  
+  return introduction;
 };
 
 // Generate group consensus messages
-export const generateConsensusMessage = (categoryName: string, optionTitle: string): string => {
-  const consensusMessages = [
-    `After careful consideration and weighing all perspectives, the group has reached a consensus on ${categoryName}. We will implement "${optionTitle}" as our collective decision.`,
-    `For ${categoryName}, the majority vote supports "${optionTitle}". This represents our joint commitment to a balanced approach.`,
-    `The final decision for ${categoryName} is "${optionTitle}". This reflects our collaborative effort to find a solution that addresses various concerns.`,
-    `We've agreed to move forward with "${optionTitle}" for ${categoryName}. This approach incorporates input from diverse perspectives in our discussion.`,
-    `Our collective decision on ${categoryName} is to implement "${optionTitle}". This represents the majority view after thorough deliberation.`
-  ];
-  
-  return consensusMessages[Math.floor(Math.random() * consensusMessages.length)];
+export const generateConsensusMessage = (categoryName: string, decisionTitle: string): string => {
+  return `After careful discussion and voting, the group has reached a consensus on ${categoryName}. The selected policy is: ${decisionTitle}. This decision reflects our collective wisdom and commitment to creating effective refugee education policies.`;
+};
+
+// NEW FUNCTION: Generate AI-powered policy response
+export const generateAIPolicyResponse = async (
+  agent: Agent,
+  category: PolicyCategory,
+  userChoice: number
+): Promise<string> => {
+  try {
+    // Get the option the user selected
+    const userOption = category.options.find(opt => opt.id === userChoice);
+    if (!userOption) return "I couldn't determine your policy choice.";
+    
+    // Get the option the agent selected
+    const agentChoice = agent.policyChoices[category.id];
+    const agentOption = agentChoice ? category.options.find(opt => opt.id === agentChoice) : null;
+    
+    // Determine the character type based on political stance
+    const character = agent.politicalStance.toLowerCase() === 'conservative' ? 'opponent' : 
+                     agent.politicalStance.toLowerCase() === 'socialist' ? 'ally' : 'guide';
+    
+    // Create the prompt for the AI
+    const prompt = `You are ${agent.name}, a ${agent.age}-year-old ${agent.occupation} with a ${agent.politicalStance} political stance in the Republic of Bean parliament.
+    
+    The group is discussing the "${category.name}" policy for refugee education.
+    
+    The user has selected "${userOption.title}": ${userOption.description}
+    
+    Your own preference is ${agentOption ? `"${agentOption.title}": ${agentOption.description}` : "undecided"}.
+    
+    Respond with your perspective on the user's policy choice in 2-3 sentences. Stay in character with your political stance.
+    If you agree, explain why. If you disagree, explain your concerns politely and reference your preferred option.`;
+    
+    // Get the AI response
+    const response = await getAIResponse(prompt, character);
+    return response;
+    
+  } catch (error) {
+    console.error("Error generating AI policy response:", error);
+    // Fall back to template-based response if AI fails
+    return generatePolicyResponse(agent, category, userChoice);
+  }
+};
+
+// NEW FUNCTION: Generate AI-powered introduction
+export const generateAIOpeningStatement = async (agent: Agent): Promise<string> => {
+  try {
+    // Create the prompt for the AI
+    const prompt = `You are ${agent.name}, a ${agent.age}-year-old ${agent.occupation} with ${agent.education} and a ${agent.politicalStance} political stance. 
+    Introduce yourself to the group as a member of parliament in the Republic of Bean discussing refugee education policy reform.
+    Briefly mention your background and political perspective in 2-3 sentences. Be in character.`;
+    
+    // Determine which character type to use based on political stance
+    const character = agent.politicalStance.toLowerCase() === 'conservative' ? 'opponent' : 
+                     agent.politicalStance.toLowerCase() === 'socialist' ? 'ally' : 'guide';
+    
+    // Get the AI response
+    const response = await getAIResponse(prompt, character);
+    return response;
+    
+  } catch (error) {
+    console.error("Error generating AI opening statement:", error);
+    // Fall back to template-based intro if AI fails
+    return generateOpeningStatement(agent);
+  }
+};
+
+// NEW FUNCTION: Generate AI-powered consensus message
+export const generateAIConsensusMessage = async (
+  categoryName: string, 
+  decisionTitle: string,
+  decisionDescription: string
+): Promise<string> => {
+  try {
+    // Create the prompt for the AI
+    const prompt = `As Professor Beanington moderating a parliamentary discussion, announce that the group has reached a consensus on "${categoryName}" policy.
+    
+    The winning option is "${decisionTitle}": ${decisionDescription}
+    
+    Explain the consensus and why this decision was made in 2-3 sentences. Be encouraging and highlight the democratic process.`;
+    
+    // Get the AI response
+    const response = await getAIResponse(prompt, 'guide');
+    return response;
+    
+  } catch (error) {
+    console.error("Error generating AI consensus message:", error);
+    // Fall back to template-based message if AI fails
+    return generateConsensusMessage(categoryName, decisionTitle);
+  }
 }; 
