@@ -1,62 +1,15 @@
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
-import { GameState, PolicyCategory, Agent, User } from '../types';
+import { GameState, Agent, User } from '../types';
 import { policyCategories } from '../data/policyData';
+import { agentProfiles } from '../data/agentProfiles';
 
-// Create initial agents
-const initialAgents: Agent[] = [
-  {
-    id: 1,
-    name: "Alex",
-    age: 45,
-    occupation: "University Professor",
-    education: "PhD in Social Sciences",
-    socioeconomicStatus: "Upper middle class",
-    politicalStance: "Liberal",
-    bio: "A thoughtful academic who believes in evidence-based approaches to social issues.",
-    isAlly: true,
-    policyChoices: {},
-    remainingBudget: 14
-  },
-  {
-    id: 2,
-    name: "Jordan",
-    age: 52,
-    occupation: "Business Owner",
-    education: "MBA",
-    socioeconomicStatus: "Upper class",
-    politicalStance: "Conservative",
-    bio: "A pragmatic business leader who prioritizes fiscal responsibility and traditional values.",
-    isAlly: false,
-    policyChoices: {},
-    remainingBudget: 14
-  },
-  {
-    id: 3,
-    name: "Morgan",
-    age: 29,
-    occupation: "Community Organizer",
-    education: "Bachelor's in Social Work",
-    socioeconomicStatus: "Lower middle class",
-    politicalStance: "Socialist",
-    bio: "An energetic activist dedicated to advocating for marginalized communities and social equity.",
-    isAlly: true,
-    policyChoices: {},
-    remainingBudget: 14
-  },
-  {
-    id: 4,
-    name: "Taylor",
-    age: 38,
-    occupation: "Government Official",
-    education: "Master's in Public Administration",
-    socioeconomicStatus: "Middle class",
-    politicalStance: "Moderate",
-    bio: "A balanced policy expert who seeks compromise solutions that can work for diverse stakeholders.",
-    isAlly: true,
-    policyChoices: {},
-    remainingBudget: 14
-  }
-];
+// Use agent profiles from data file for consistent experience
+const initialAgents: Agent[] = agentProfiles.map(agent => ({
+  ...agent,
+  // Reset policy choices for new game
+  policyChoices: {},
+  remainingBudget: 14
+}));
 
 // Initialize user object
 const initialUser: User = {

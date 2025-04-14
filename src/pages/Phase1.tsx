@@ -7,14 +7,9 @@ import {
   Paper, 
   Alert, 
   Slide, 
-  Fab, 
-  Zoom,
-  useScrollTrigger,
-  Tooltip,
-  LinearProgress
+  LinearProgress,
+  useScrollTrigger
 } from '@mui/material';
-import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import { useGameContext } from '../context/GameContext';
 import PolicySelectionCard from '../components/PolicySelectionCard';
 import BudgetSummary from '../components/BudgetSummary';

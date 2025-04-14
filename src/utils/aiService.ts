@@ -25,52 +25,87 @@ export const getAIResponse = async (
   previousMessages: Message[] = []
 ): Promise<string> => {
   try {
+    // Extract the character name from the prompt if available
+    const nameMatch = prompt.match(/You are ([^,]+),/);
+    const characterName = nameMatch ? nameMatch[1].trim() : null;
+    
     // Create character personalities with more specific guidance
     let systemMessage = '';
     
-    switch (character) {
-      case 'guide':
-        systemMessage = `You are Professor Beanington, a wise and helpful guide in the CHALLENGE Game about refugee education policy. 
-        You are moderating a discussion between agents with different political views.
-        Keep responses concise (2-3 sentences).
-        Focus on guiding the discussion toward consensus while respecting different viewpoints.
-        Occasionally use bean-related metaphors (like "sprouting ideas" or "cultivating solutions").
-        Your goal is to help participants understand complex policy trade-offs in refugee education.`;
-        break;
-      case 'opponent':
-        systemMessage = `You are a conservative politician participating in a discussion about refugee education policy.
-        Express viewpoints that focus on:
-        - Fiscal responsibility and budget constraints
-        - Preserving traditional education methods
-        - Integration of refugees into existing structures rather than creating special programs
-        - Concerns about standards being maintained
-        Keep your responses concise (2-3 sentences) and professional but firm in your conservative stance.
-        Avoid being rude or dismissive, but show skepticism toward expensive or progressive approaches.`;
-        break;
-      case 'ally':
-        systemMessage = `You are a progressive/socialist politician participating in a discussion about refugee education policy.
-        Express viewpoints that focus on:
-        - Inclusion, equity, and social justice
-        - Supporting comprehensive programs for refugees
-        - Investment in specialized services
-        - Celebrating diversity and cultural exchange
-        Keep your responses concise (2-3 sentences) and passionate but focused on policy.
-        Occasionally use a made-up phrase to emphasize your cultural sensitivity (like "Mira sotela!" meaning "We must unite!").`;
-        break;
-      default:
-        systemMessage = `You are a thoughtful participant in a policy discussion about refugee education.
-        Keep your responses concise (2-3 sentences).
-        Focus on the policy aspects rather than abstract philosophy.
-        Be respectful of other viewpoints while clearly stating your own position.`;
+    if (characterName) {
+      // If we have a specific character name, use that in the prompt
+      systemMessage = `You are ${characterName}. You must respond as if you ARE ${characterName}, using "I" pronouns. 
+      Never break character or pretend to be anyone else.
+      Never respond as if you were Professor Beanington or any other character.
+      Your response must be written in first-person perspective as ${characterName}.`;
+      
+      // Add character's political stance if mentioned in prompt
+      if (prompt.includes('Conservative') || character === 'opponent') {
+        systemMessage += `\nYou have conservative views on education policy, including:
+        - Fiscal responsibility and careful spending
+        - Preserving traditional educational methods and standards
+        - Preference for integrating refugees into existing systems rather than creating expensive special programs
+        - Occasionally mention practical fiscal concerns in your responses`;
+      } else if (prompt.includes('Progressive') || prompt.includes('Socialist') || character === 'ally') {
+        systemMessage += `\nYou have progressive/socialist views on education policy, including:
+        - Strong belief in inclusion, equity, and social justice
+        - Support for comprehensive programs for refugees
+        - Celebration of diversity and cultural exchange
+        - Occasionally reference social equity and justice in your responses`;
+      } else if (prompt.includes('Moderate')) {
+        systemMessage += `\nYou have moderate political views, believing in:
+        - Finding balanced approaches to refugee education
+        - Pragmatic solutions that respect tradition while embracing necessary changes
+        - Compromise between fiscal responsibility and necessary support services
+        - Often reference finding middle ground in your responses`;
+      }
+    } else {
+      // Default characters if no specific name is provided
+      switch (character) {
+        case 'guide':
+          systemMessage = `You are Professor Beanington, a wise and helpful guide in the CHALLENGE Game about refugee education policy. 
+          You are moderating a discussion between agents with different political views.
+          Keep responses concise (2-3 sentences).
+          Focus on guiding the discussion toward consensus while respecting different viewpoints.
+          Occasionally use bean-related metaphors (like "sprouting ideas" or "cultivating solutions").`;
+          break;
+        case 'opponent':
+          systemMessage = `You are a conservative politician participating in a discussion about refugee education policy.
+          You have a fiscal conservative viewpoint emphasizing:
+          - Budget constraints and responsible spending
+          - Preserving traditional education methods
+          - Integration into existing structures rather than creating special programs
+          - Concerns about maintaining educational standards
+          Keep your responses concise (2-3 sentences) and professional.`;
+          break;
+        case 'ally':
+          systemMessage = `You are a progressive/socialist politician participating in a discussion about refugee education policy.
+          You advocate strongly for:
+          - Inclusion, equity, and social justice
+          - Comprehensive support programs for refugees
+          - Investment in specialized services
+          - Celebrating diversity and cultural exchange
+          Keep your responses concise (2-3 sentences) and passionate about equity.`;
+          break;
+        default:
+          systemMessage = `You are a moderate politician participating in a policy discussion about refugee education.
+          You aim to balance:
+          - Practical concerns about resources
+          - The need for specialized support for refugees
+          - Finding middle-ground solutions that most stakeholders can accept
+          Keep your responses concise (2-3 sentences).`;
+      }
     }
 
     // Add clear instructions for focused responses
-    systemMessage += `\n\nIMPORTANT: 
+    systemMessage += `\n\nCRITICAL INSTRUCTIONS: 
     1. Keep your response under 3 sentences
-    2. Stay in character at all times
-    3. Do not reference being an AI
-    4. Focus specifically on the policy discussion at hand
-    5. Respond directly to what the user just said`;
+    2. DO NOT start with phrases like "As [name]" or "As a [role]"
+    3. DO NOT reference being an AI or language model
+    4. Stay in character throughout your entire response
+    5. Focus ONLY on the policy discussion at hand
+    6. Respond directly to what was just said
+    7. Use natural, conversational language`;
 
     // Prepare the messages for the AI model
     const messageHistory = [
@@ -80,46 +115,116 @@ export const getAIResponse = async (
     ];
 
     try {
-      console.log(`Sending request to OpenAI with model: ${OPENAI_MODEL}`);
-      // Try using the new o3-mini model format
+      console.log(`Sending request to OpenAI for ${characterName || character}`);
+      console.log(`Prompt: "${prompt.substring(0, 100)}..."`);
+
+      // Try using the chat completions API with specified model
       const response = await openai.chat.completions.create({
         model: OPENAI_MODEL,
         messages: messageHistory,
-        temperature: 0.7,
-        max_tokens: 300
+        temperature: 0.8, // Slightly increased temperature for more varied responses
+        max_tokens: 300,
+        presence_penalty: 0.2, // Added to reduce repetitive responses
+        frequency_penalty: 0.2 // Added to encourage more varied language
       });
       
-      console.log('OpenAI o3-mini response received');
-      return response.choices[0].message.content || '';
-    } catch (error) {
-      console.error('Error with o3-mini format, falling back to chat completions:', error);
+      console.log('OpenAI response received');
       
-      // Fallback to the chat completions API
-      const fallbackResponse = await axios.post(
-        'https://api.openai.com/v1/chat/completions',
-        {
-          model: 'gpt-4o-mini',
-          messages: messageHistory,
-          temperature: 0.7,
-          max_tokens: 300
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${OPENAI_API_KEY}`
+      // Verify response doesn't contain identity confusion
+      let responseText = response.choices[0].message.content || '';
+      
+      // More comprehensive check for identity confusion patterns
+      const identityConfusion = 
+        /\b(?:as |I am |I'm |this is )(?:professor|prof\.|a professor|your guide|a guide)/i.test(responseText) ||
+        /\bas\s+[\w\s]+(?:,|\.|\b)/i.test(responseText) || // Catches "As [any role/name],"
+        /I\s+am\s+an\s+AI/i.test(responseText) ||
+        /language\s+model/i.test(responseText);
+      
+      if (identityConfusion && characterName) {
+        console.log("Identity confusion detected, fixing response");
+        
+        // Fix common identity confusion patterns
+        responseText = responseText
+          .replace(/(?:As|Speaking as|In my role as)[\w\s]+(?:,|\.|\b)/i, "") // Remove "As X," prefixes
+          .replace(/(?:I am|I'm|This is)[\w\s]+?(?:,|\.|\b)/i, "") // Remove "I am X," prefixes
+          .replace(/I am an AI/i, `I am ${characterName}`)
+          .replace(/language model/i, "politician")
+          .trim();
+        
+        // If the response still has identity issues or is now too short, generate a fallback
+        if (identityConfusion || responseText.length < 20) {
+          const politicalStance = prompt.match(/with a (\w+) political stance/) || ['', 'moderate'];
+          
+          return `I think ${responseText.replace(/^I think /i, '')}`;
+        }
+      }
+      
+      return responseText;
+    } catch (error) {
+      console.error('Error with OpenAI API, falling back to direct API call:', error);
+      
+      // Fallback to direct API call
+      try {
+        const fallbackResponse = await axios.post(
+          'https://api.openai.com/v1/chat/completions',
+          {
+            model: 'gpt-4o-mini',
+            messages: messageHistory,
+            temperature: 0.8,
+            max_tokens: 300,
+            presence_penalty: 0.2,
+            frequency_penalty: 0.2
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${OPENAI_API_KEY}`
+            }
+          }
+        );
+        
+        console.log('Fallback OpenAI chat response received');
+        let responseText = fallbackResponse.data.choices[0].message.content;
+        
+        // Apply the same identity confusion checks
+        const identityConfusion = 
+          /\b(?:as |I am |I'm |this is )(?:professor|prof\.|a professor|your guide|a guide)/i.test(responseText) ||
+          /\bas\s+[\w\s]+(?:,|\.|\b)/i.test(responseText) ||
+          /I\s+am\s+an\s+AI/i.test(responseText) ||
+          /language\s+model/i.test(responseText);
+        
+        if (identityConfusion && characterName) {
+          responseText = responseText
+            .replace(/(?:As|Speaking as|In my role as)[\w\s]+(?:,|\.|\b)/i, "")
+            .replace(/(?:I am|I'm|This is)[\w\s]+?(?:,|\.|\b)/i, "")
+            .replace(/I am an AI/i, `I am ${characterName}`)
+            .replace(/language model/i, "politician")
+            .trim();
+            
+          if (responseText.length < 20) {
+            return `I think we need to consider all perspectives on this important refugee education issue.`;
           }
         }
-      );
-      
-      console.log('Fallback OpenAI chat response received:', fallbackResponse.status);
-      return fallbackResponse.data.choices[0].message.content;
+        
+        return responseText;
+      } catch (finalError) {
+        console.error('All API attempts failed:', finalError);
+        return characterName 
+          ? `I think we should focus on practical solutions for refugee education that balance our resources with the needs of all students.`
+          : "I believe we should carefully consider all perspectives on this important issue.";
+      }
     }
   } catch (error) {
     console.error('Error calling OpenAI API:', error);
     if (axios.isAxiosError(error) && error.response) {
       console.error('API Error details:', error.response.data);
     }
-    return "I'm having trouble connecting to my knowledge base. Let's continue with the game!";
+    
+    // Last-resort fallback
+    const nameMatch = prompt.match(/You are ([^,]+),/);
+    const characterName = nameMatch ? nameMatch[1].trim() : "a policy expert";
+    
+    return `I think we should focus on developing effective education policies that support refugee integration while respecting our community's values and resources.`;
   }
 };
 

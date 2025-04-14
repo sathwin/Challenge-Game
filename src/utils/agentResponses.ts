@@ -99,7 +99,7 @@ export const generateAIPolicyResponse = async (
     const character = agent.politicalStance.toLowerCase() === 'conservative' ? 'opponent' : 
                      agent.politicalStance.toLowerCase() === 'socialist' ? 'ally' : 'guide';
     
-    // Create the prompt for the AI
+    // Create a more conversational prompt for the AI
     const prompt = `You are ${agent.name}, a ${agent.age}-year-old ${agent.occupation} with a ${agent.politicalStance} political stance in the Republic of Bean parliament.
     
     The group is discussing the "${category.name}" policy for refugee education.
@@ -108,8 +108,14 @@ export const generateAIPolicyResponse = async (
     
     Your own preference is ${agentOption ? `"${agentOption.title}": ${agentOption.description}` : "undecided"}.
     
-    Respond with your perspective on the user's policy choice in 2-3 sentences. Stay in character with your political stance.
-    If you agree, explain why. If you disagree, explain your concerns politely and reference your preferred option.`;
+    IMPORTANT:
+    1. Respond with your perspective on the user's policy choice in 2-3 conversational sentences
+    2. Start with a natural response like "I think..." or "In my view..." 
+    3. Include a personal opinion or real-world connection
+    4. Stay in character with your political stance
+    5. DO NOT mention Professor Beanington
+    6. If you agree with the user, explain why
+    7. If you disagree, express your concerns politely`;
     
     // Get the AI response
     const response = await getAIResponse(prompt, character);
@@ -122,22 +128,51 @@ export const generateAIPolicyResponse = async (
   }
 };
 
-// NEW FUNCTION: Generate AI-powered introduction
+// Enhanced function to ensure proper agent identity in introductions
 export const generateAIOpeningStatement = async (agent: Agent): Promise<string> => {
   try {
-    // Create the prompt for the AI
+    // Create the prompt for the AI with explicit identity instructions
     const prompt = `You are ${agent.name}, a ${agent.age}-year-old ${agent.occupation} with ${agent.education} and a ${agent.politicalStance} political stance. 
     Introduce yourself to the group as a member of parliament in the Republic of Bean discussing refugee education policy reform.
-    Briefly mention your background and political perspective in 2-3 sentences. Be in character.`;
+    
+    IMPORTANT INSTRUCTIONS:
+    1. You MUST speak in first person AS ${agent.name} and never as any other character
+    2. NEVER respond as Professor Beanington or mention Professor Beanington
+    3. Begin your introduction with "I am ${agent.name}" or "My name is ${agent.name}"
+    4. Mention your background and political perspective in 2-3 sentences
+    5. Use natural, conversational language
+    6. Keep your response brief and engaging`;
     
     // Determine which character type to use based on political stance
-    const character = agent.politicalStance.toLowerCase() === 'conservative' ? 'opponent' : 
-                     agent.politicalStance.toLowerCase() === 'socialist' ? 'ally' : 'guide';
+    let characterType: 'guide' | 'opponent' | 'ally' = 'guide';
+    
+    if (agent.politicalStance === 'Conservative') {
+      characterType = 'opponent';
+    } else if (['Progressive', 'Socialist'].includes(agent.politicalStance)) {
+      characterType = 'ally';
+    } else if (agent.politicalStance === 'Moderate') {
+      characterType = 'guide';
+    }
+    
+    console.log(`Generating introduction for ${agent.name} as ${characterType} stance`);
     
     // Get the AI response
-    const response = await getAIResponse(prompt, character);
-    return response;
+    const response = await getAIResponse(prompt, characterType);
     
+    // Verify response doesn't contain identity confusion
+    const hasIdentityConfusion = 
+      /professor beanington/i.test(response) || 
+      /as your guide/i.test(response) || 
+      /as a guide/i.test(response) ||
+      !new RegExp(`I am ${agent.name}|My name is ${agent.name}`, 'i').test(response);
+    
+    if (hasIdentityConfusion) {
+      console.warn(`Identity confusion detected in ${agent.name}'s introduction. Using fallback.`);
+      // Create a more reliable fallback that explicitly includes the name
+      return `I am ${agent.name}, a ${agent.age}-year-old ${agent.occupation} with experience in ${agent.education}. As a ${agent.politicalStance} member of parliament in the Republic of Bean, I'm committed to developing effective refugee education policies that align with my values.`;
+    }
+    
+    return response;
   } catch (error) {
     console.error("Error generating AI opening statement:", error);
     // Fall back to template-based intro if AI fails
@@ -152,12 +187,18 @@ export const generateAIConsensusMessage = async (
   decisionDescription: string
 ): Promise<string> => {
   try {
-    // Create the prompt for the AI
-    const prompt = `As Professor Beanington moderating a parliamentary discussion, announce that the group has reached a consensus on "${categoryName}" policy.
+    // Create a more varied prompt for the AI
+    const prompt = `As the moderator of a parliamentary discussion, announce that the group has reached a consensus on "${categoryName}" policy for refugee education.
     
-    The winning option is "${decisionTitle}": ${decisionDescription}
+    The group has selected "${decisionTitle}": ${decisionDescription}
     
-    Explain the consensus and why this decision was made in 2-3 sentences. Be encouraging and highlight the democratic process.`;
+    IMPORTANT:
+    1. Explain the consensus in 2-3 sentences
+    2. Highlight the democratic process
+    3. Use a positive, encouraging tone
+    4. Mention how this decision balances different perspectives
+    5. Use natural, conversational language
+    6. Occasionally include phrases like "sprouting ideas" or "cultivating solutions" to add character`;
     
     // Get the AI response
     const response = await getAIResponse(prompt, 'guide');
