@@ -2,20 +2,12 @@ import axios from 'axios';
 import OpenAI from 'openai';
 
 const OPENAI_API_KEY = process.env.REACT_APP_OPENAI_API_KEY;
-// Fallback to gpt-4o-mini which is proven to work
-const OPENAI_MODEL = process.env.REACT_APP_OPENAI_MODEL || 'gpt-4o-mini';
+// Updated to use o3-mini model
+const OPENAI_MODEL = process.env.REACT_APP_OPENAI_MODEL || 'o3-mini';
 
 interface Message {
   role: 'system' | 'user' | 'assistant';
   content: string;
-}
-
-interface OpenAIResponse {
-  choices: {
-    message: {
-      content: string;
-    };
-  }[];
 }
 
 // Initialize OpenAI client
@@ -62,33 +54,47 @@ export const getAIResponse = async (
         systemMessage = `You are a helpful game character in the CHALLENGE Game.`;
     }
 
-    // For simplicity and reliability, let's use the Chat Completions API which is more stable
-    const messages: Message[] = [
-      { role: 'system', content: systemMessage },
+    // Prepare the messages for the AI model
+    const messageHistory = [
+      { role: 'system' as const, content: systemMessage },
       ...previousMessages,
-      { role: 'user', content: prompt }
+      { role: 'user' as const, content: prompt }
     ];
 
-    // Call OpenAI API using chat completions endpoint
-    console.log(`Sending request to OpenAI with model: ${OPENAI_MODEL}`);
-    const response = await axios.post(
-      'https://api.openai.com/v1/chat/completions',
-      {
+    try {
+      // Try using the new o3-mini model format
+      const response = await openai.chat.completions.create({
         model: OPENAI_MODEL,
-        messages,
+        messages: messageHistory,
         temperature: 0.7,
         max_tokens: 300
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`
+      });
+      
+      console.log('OpenAI o3-mini response received');
+      return response.choices[0].message.content || '';
+    } catch (error) {
+      console.error('Error with o3-mini format, falling back to chat completions:', error);
+      
+      // Fallback to the chat completions API
+      const fallbackResponse = await axios.post(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          model: 'gpt-4o-mini',
+          messages: messageHistory,
+          temperature: 0.7,
+          max_tokens: 300
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${OPENAI_API_KEY}`
+          }
         }
-      }
-    );
-
-    console.log('OpenAI response received:', response.status);
-    return response.data.choices[0].message.content;
+      );
+      
+      console.log('Fallback OpenAI chat response received:', fallbackResponse.status);
+      return fallbackResponse.data.choices[0].message.content;
+    }
   } catch (error) {
     console.error('Error calling OpenAI API:', error);
     if (axios.isAxiosError(error) && error.response) {
@@ -123,29 +129,47 @@ export const getGameReflection = async (
     Keep your tone professional but friendly, and make references to the game's fictional setting.
     Limit your response to about 250 words and ensure it feels like an expert assessment rather than generic praise.`;
 
-    // Use chat completions API as it's more stable
-    console.log('Generating game reflection...');
-    const response = await axios.post(
-      'https://api.openai.com/v1/chat/completions',
-      {
+    // Prepare the messages for the model
+    const messages = [
+      { role: 'system' as const, content: systemPrompt },
+      { role: 'user' as const, content: decisionsText + "\n\nProvide a reflection on these policy choices and their potential impacts." }
+    ];
+
+    try {
+      // Try using the chat completions API with o3-mini model
+      const response = await openai.chat.completions.create({
         model: OPENAI_MODEL,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: decisionsText + "\n\nProvide a reflection on these policy choices and their potential impacts." }
-        ],
+        messages: messages,
         temperature: 0.7,
         max_tokens: 500
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`
+      });
+      
+      console.log('Reflection generated successfully with o3-mini');
+      return response.choices[0].message.content || '';
+    } catch (error) {
+      console.error('Error with o3-mini format for reflection, falling back to direct API call:', error);
+      
+      // Fallback to direct API call
+      console.log('Generating game reflection with fallback method...');
+      const fallbackResponse = await axios.post(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          model: 'gpt-4o-mini',
+          messages: messages,
+          temperature: 0.7,
+          max_tokens: 500
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${OPENAI_API_KEY}`
+          }
         }
-      }
-    );
+      );
 
-    console.log('Reflection generated successfully');
-    return response.data.choices[0].message.content;
+      console.log('Reflection generated successfully with fallback');
+      return fallbackResponse.data.choices[0].message.content;
+    }
   } catch (error) {
     console.error('Error generating game reflection:', error);
     if (axios.isAxiosError(error) && error.response) {
