@@ -1076,8 +1076,9 @@ const Phase2: React.FC = () => {
                   {category?.name}
                 </Typography>
                 
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontSize: '0.85rem' }}>
-                  {category?.options?.[0]?.description?.substring(0, 120) || 'Discuss policy options for refugee education.'}
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontSize: '0.85rem', whiteSpace: 'normal', overflowWrap: 'break-word' }}>
+                  {category?.options?.[0]?.description?.substring(0, 150) || 'Discuss policy options for refugee education.'}
+                  {category?.options?.[0]?.description && category.options[0].description.length > 150 && '...'}
                 </Typography>
               </Paper>
               
@@ -1205,7 +1206,8 @@ const Phase2: React.FC = () => {
                     alignItems: 'center', 
                     mb: 0.75,
                     borderBottom: '1px solid rgba(0,0,0,0.05)',
-                    pb: 0.5
+                    pb: 0.5,
+                    overflow: 'hidden'
                   }}>
                     <Avatar 
                       src={agent.avatar}
@@ -1213,29 +1215,57 @@ const Phase2: React.FC = () => {
                         width: 24, 
                         height: 24, 
                         mr: 1,
+                        flexShrink: 0,
                         fontSize: '0.75rem',
                         bgcolor: getStanceColor(agent.politicalStance)
                       }}
                     >
                       {agent.name.charAt(0)}
                     </Avatar>
-                    <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>{agent.name}</Typography>
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        fontSize: '0.85rem',
+                        textOverflow: 'ellipsis',
+                        overflow: 'hidden',
+                        whiteSpace: 'nowrap',
+                        maxWidth: '100%'
+                      }}
+                    >
+                      {agent.name}
+                    </Typography>
                   </Box>
                 ))}
                 
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center',
+                  overflow: 'hidden' 
+                }}>
                   <Avatar 
                     sx={{ 
                       width: 24, 
                       height: 24, 
                       mr: 1,
+                      flexShrink: 0,
                       fontSize: '0.75rem',
                       bgcolor: theme.palette.primary.main
                     }}
                   >
                     Y
                   </Avatar>
-                  <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>You</Typography>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      fontSize: '0.85rem',
+                      textOverflow: 'ellipsis',
+                      overflow: 'hidden',
+                      whiteSpace: 'nowrap',
+                      maxWidth: '100%'
+                    }}
+                  >
+                    You
+                  </Typography>
                 </Box>
               </Paper>
             </Box>
