@@ -25,6 +25,7 @@ import GroupsIcon from '@mui/icons-material/Groups';
 import ChatIcon from '@mui/icons-material/Chat';
 import HowToVoteIcon from '@mui/icons-material/HowToVote';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import PeopleIcon from '@mui/icons-material/People';
 import { useGameContext } from '../context/GameContext';
 import AgentMessage from '../components/AgentMessage';
 import PolicySelectionCard from '../components/PolicySelectionCard';
@@ -617,6 +618,25 @@ const Phase2: React.FC = () => {
         }
       });
       
+      // Update the used budget to ensure budget summary is correct
+      // The total used budget is the sum of all decisions costs
+      const usedBudget = Object.entries({
+        ...groupDecisions,
+        [category.id]: selectedOption.id
+      }).reduce((total, [catId, optId]) => {
+        const cat = policyCategories.find(c => c.id === Number(catId));
+        const opt = cat?.options.find(o => o.id === optId);
+        return total + (opt?.cost || 0);
+      }, 0);
+      
+      // Update user's remaining budget
+      dispatch({
+        type: 'UPDATE_USER_INFO',
+        payload: { 
+          remainingBudget: 14 - usedBudget
+        }
+      });
+      
       // Add results message
       const resultsMessage: MessageType = {
         id: Date.now() + Math.random() * 1000,
@@ -789,53 +809,6 @@ const Phase2: React.FC = () => {
                   }
                 }}
               >
-                {/* Participants panel */}
-                <Box sx={{
-                  position: 'absolute',
-                  bottom: 10,
-                  right: 10,
-                  bgcolor: 'rgba(255,255,255,0.9)',
-                  borderRadius: '8px',
-                  p: 1,
-                  width: 'auto',
-                  minWidth: 120,
-                  border: '1px solid rgba(0,0,0,0.1)',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                  zIndex: 100,
-                  fontSize: '0.75rem',
-                  display: { xs: 'none', md: 'block' } // Only show on larger screens
-                }}>
-                  <Typography variant="caption" sx={{ display: 'block', fontWeight: 'bold', mb: 0.5, color: 'text.secondary' }}>
-                    Participants
-                  </Typography>
-                  {agents.map((agent) => (
-                    <Box key={agent.id} sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
-                      <Box
-                        sx={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: '50%',
-                          bgcolor: 'success.main',
-                          mr: 1
-                        }}
-                      />
-                      <Typography variant="caption" noWrap>{agent.name}</Typography>
-                    </Box>
-                  ))}
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Box
-                      sx={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: '50%',
-                        bgcolor: 'primary.main',
-                        mr: 1
-                      }}
-                    />
-                    <Typography variant="caption">You</Typography>
-                  </Box>
-                </Box>
-                
                 {messages.length === 0 ? (
                   // Show this when no messages are available
                   <Box sx={{ 
@@ -1211,6 +1184,59 @@ const Phase2: React.FC = () => {
                   value={(user.remainingBudget / 14) * 100} 
                   sx={{ height: 8, borderRadius: 4 }}
                 />
+              </Paper>
+              
+              {/* Participants panel - now moved below budget summary */}
+              <Paper elevation={2} sx={{ p: 2, mb: 2, bgcolor: 'background.paper' }}>
+                <Typography variant="subtitle1" sx={{ 
+                  fontWeight: 'bold', 
+                  display: 'flex', 
+                  alignItems: 'center',
+                  mb: 1,
+                  fontSize: '0.95rem'
+                }}>
+                  <PeopleIcon sx={{ mr: 1, fontSize: '1rem' }} />
+                  Participants
+                </Typography>
+                
+                {agents.map((agent) => (
+                  <Box key={agent.id} sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    mb: 0.75,
+                    borderBottom: '1px solid rgba(0,0,0,0.05)',
+                    pb: 0.5
+                  }}>
+                    <Avatar 
+                      src={agent.avatar}
+                      sx={{ 
+                        width: 24, 
+                        height: 24, 
+                        mr: 1,
+                        fontSize: '0.75rem',
+                        bgcolor: getStanceColor(agent.politicalStance)
+                      }}
+                    >
+                      {agent.name.charAt(0)}
+                    </Avatar>
+                    <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>{agent.name}</Typography>
+                  </Box>
+                ))}
+                
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Avatar 
+                    sx={{ 
+                      width: 24, 
+                      height: 24, 
+                      mr: 1,
+                      fontSize: '0.75rem',
+                      bgcolor: theme.palette.primary.main
+                    }}
+                  >
+                    Y
+                  </Avatar>
+                  <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>You</Typography>
+                </Box>
               </Paper>
             </Box>
           </Box>
