@@ -734,6 +734,17 @@ const Phase2: React.FC = () => {
     }
   };
   
+  // Add an effect to reset budget to 14 when component mounts
+  useEffect(() => {
+    // Reset the user's budget to 14 to ensure it starts fresh
+    dispatch({
+      type: 'UPDATE_USER_INFO',
+      payload: { 
+        remainingBudget: 14
+      }
+    });
+  }, []); // Empty dependency array ensures this runs only once at mount
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -1176,15 +1187,32 @@ const Phase2: React.FC = () => {
                   Budget Summary
                 </Typography>
                 
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontSize: '0.85rem' }}>
-                  Remaining budget: <span style={{ fontWeight: 'bold', color: theme.palette.primary.main }}>{user.remainingBudget}</span> of 14 units
-                </Typography>
-                
-                <LinearProgress 
-                  variant="determinate" 
-                  value={(user.remainingBudget / 14) * 100} 
-                  sx={{ height: 8, borderRadius: 4 }}
-                />
+                {/* Calculate used budget based on group decisions */}
+                {(() => {
+                  // Calculate used budget from group decisions
+                  const usedBudget = Object.entries(groupDecisions).reduce((total, [catId, optId]) => {
+                    const cat = policyCategories.find(c => c.id === Number(catId));
+                    const opt = cat?.options.find(o => o.id === optId);
+                    return total + (opt?.cost || 0);
+                  }, 0);
+                  
+                  // Calculate remaining budget (out of total 14)
+                  const remainingBudget = 14 - usedBudget;
+                  
+                  return (
+                    <>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontSize: '0.85rem' }}>
+                        Remaining budget: <span style={{ fontWeight: 'bold', color: theme.palette.primary.main }}>{remainingBudget}</span> of 14 units
+                      </Typography>
+                      
+                      <LinearProgress 
+                        variant="determinate" 
+                        value={(remainingBudget / 14) * 100} 
+                        sx={{ height: 8, borderRadius: 4 }}
+                      />
+                    </>
+                  );
+                })()}
               </Paper>
               
               {/* Participants panel - now moved below budget summary */}
