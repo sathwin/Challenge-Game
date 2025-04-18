@@ -168,87 +168,96 @@ const Phase2: React.FC = () => {
     return () => clearTimeout(initTimer);
   }, []); // Empty dependency array to ensure this only runs once
 
-  // Modified initializeDiscussion function to prevent duplicates
+  // Update the initializeDiscussion function for more natural introductions
   const initializeDiscussion = async () => {
-    console.log("initializeDiscussion called with agents:", agents?.length || 0);
+    console.log("Starting fresh initialization");
     
-    // Set of unique message IDs to prevent duplicates
-    const processedMessageIds = new Set<number>();
+    // Clear existing messages
+    setMessages([]);
     
-    // Helper to add a message only if not a duplicate
-    const addUniqueMessage = (message: MessageType) => {
-      if (!processedMessageIds.has(message.id)) {
-        processedMessageIds.add(message.id);
-        setMessages(prev => [...prev, message]);
-        return true;
-      }
-      console.log("Duplicate message detected, skipping:", message.id);
-      return false;
-    };
+    // Track processed message IDs to prevent duplicates
+    const processedIds = new Set<number>();
     
-    // Generate a truly unique ID
-    const generateUniqueId = () => {
+    // Helper to create and add a message with guaranteed uniqueness
+    const addMessage = (messageData: Omit<MessageType, 'id'>) => {
       const id = Date.now() + Math.random() * 10000;
-      return id;
+      const message = { ...messageData, id };
+      
+      setMessages(prev => {
+        // Check if we already have a similar message
+        const isDuplicate = prev.some(existing => 
+          existing.sender === message.sender && 
+          existing.text === message.text
+        );
+        
+        if (isDuplicate) {
+          console.log("Skipping duplicate message:", message.sender, message.text.substring(0, 20));
+          return prev;
+        }
+        
+        return [...prev, message];
+      });
+      
+      return new Promise(resolve => setTimeout(resolve, 600));
     };
     
-    // System welcome message
-    const welcomeMessage: MessageType = {
-      id: generateUniqueId(),
-      text: "Welcome to the group discussion phase. Each of the AI agents will introduce themselves, and then you can discuss each policy area to reach consensus.",
+    // Welcome message that introduces the setup more naturally
+    await addMessage({
+      text: "Welcome to our discussion on refugee education policy. Our committee members will share their perspectives as we work toward building consensus.",
       sender: 'System',
       isUser: false,
       timestamp: Date.now()
-    };
-    addUniqueMessage(welcomeMessage);
+    });
     
-    // Short pause
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // System introduction message
-    const introMessage: MessageType = {
-      id: generateUniqueId(),
-      text: "Let me introduce you to your discussion partners...",
+    // More natural introduction message
+    await addMessage({
+      text: "Let's have everyone introduce themselves briefly.",
       sender: 'System',
       isUser: false,
       timestamp: Date.now() + 100
-    };
-    addUniqueMessage(introMessage);
+    });
     
-    // Process each agent exactly once
+    // Agent introductions (more conversational with shorter intros)
     for (let i = 0; i < agents.length; i++) {
       const agent = agents[i];
-      await new Promise(resolve => setTimeout(resolve, 600));
       
-      const introText = `Hello everyone, I am ${agent.name}, a ${agent.age}-year-old ${agent.occupation} with ${agent.education}. As a ${agent.politicalStance} member of parliament in the Republic of Bean, I'm looking forward to discussing refugee education policies with all of you.`;
+      let introText = "";
+      switch (agent.name) {
+        case "Dr. Sarah Chen":
+          introText = "Hello everyone, I'm Sarah Chen from the Education Policy department. I'm looking forward to our discussion today about creating meaningful access to education for refugee students.";
+          break;
+        case "Thomas Reynolds":
+          introText = "Hi there, Tom Reynolds here. I'm excited to work with all of you to develop practical and sustainable solutions for refugee education in our country.";
+          break;
+        case "Maria González":
+          introText = "Hello colleagues, I'm Maria González. I've worked closely with refugee communities and am passionate about ensuring all students have equal opportunities in our education system.";
+          break;
+        case "James Taylor":
+          introText = "Good to meet everyone. I'm James Taylor from the Education Ministry. I believe we can find balanced approaches that serve refugee students while being mindful of our resources.";
+          break;
+        default:
+          introText = `Hello everyone, I'm ${agent.name}. I'm looking forward to discussing refugee education policies with all of you.`;
+      }
       
-      const agentMessage: MessageType = {
-        id: generateUniqueId(),
+      await addMessage({
         text: introText,
         sender: agent.name,
         isUser: false,
         avatar: agent.avatar,
-        timestamp: Date.now() + 300 + (i * 100),
+        timestamp: Date.now() + (i * 100),
         agent: agent
-      };
-      
-      addUniqueMessage(agentMessage);
+      });
     }
     
-    // Start discussion message
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    const startDiscussionMessage: MessageType = {
-      id: generateUniqueId(),
-      text: `Let's begin our discussion with the first policy category: ${policyCategories[0].name}. What are your thoughts on this issue?`,
+    // Start discussion message - more conversational
+    await addMessage({
+      text: `Great, now that we're all acquainted, let's begin our discussion on the first topic: ${policyCategories[0].name}. What are your thoughts on this issue?`,
       sender: 'System',
       isUser: false,
       timestamp: Date.now() + 1000
-    };
+    });
     
-    addUniqueMessage(startDiscussionMessage);
-    
-    // Move to discussion step
+    // Set discussion state
     setDiscussionStep('agentIntrosComplete');
     setCurrentStep('discussion');
   };
@@ -289,28 +298,25 @@ const Phase2: React.FC = () => {
     }
   }, [currentCategory, currentStep, groupDecisions, policyCategories]);
   
-  // Modified handleSendMessage to use the de-duplication function
+  // Update handleSendMessage for more natural responses without political stance labels
   const handleSendMessage = async () => {
     if (!userInput.trim()) return;
     
-    // Generate a unique ID for this message
-    const messageId = Date.now() + Math.random() * 1000;
+    // Clear any old voting flags from local storage
+    localStorage.removeItem('votingTriggered');
     
     // Add user message
     const newUserMessage: MessageType = {
-      id: messageId,
+      id: Date.now() + Math.random() * 1000,
       text: userInput,
       sender: 'You',
       isUser: true,
       timestamp: Date.now()
     };
     
-    console.log("Adding user message:", newUserMessage.text);
-    
-    // Add message only if it's not a duplicate
     setMessages(prev => {
-      if (isDuplicateMessage(prev, newUserMessage)) {
-        console.log("Duplicate user message detected, not adding");
+      // Check for duplicates
+      if (prev.some(msg => msg.isUser && msg.text === userInput)) {
         return prev;
       }
       return [...prev, newUserMessage];
@@ -320,86 +326,169 @@ const Phase2: React.FC = () => {
     setProcessingResponse(true);
     
     try {
-      // Check if the user's message suggests they want to proceed to voting
-      const suggestsVoting = 
-        userInput.toLowerCase().includes('vote') || 
-        userInput.toLowerCase().includes('proceed') ||
-        userInput.toLowerCase().includes('decide') ||
-        userInput.toLowerCase().includes('moving on') ||
-        userInput.toLowerCase().includes('consensus') ||
-        userInput.toLowerCase().includes('okay');
-        
-      // Get count of user messages
+      // Check if message suggests voting
+      const suggestsVoting = userInput.toLowerCase().match(/vote|proceed|decide|voting|consensus|okay|next|yes|go ahead/);
+      
+      // Get user message count
       const userMessageCount = messages.filter(m => m.isUser).length;
       
-      // Generate a simple agent response
-      const randomAgentIndex = Math.floor(Math.random() * agents.length);
-      const respondingAgent = agents[randomAgentIndex];
+      // Determine which agents should respond
+      // For early messages, get multiple responses to simulate a real discussion
+      const shouldMultipleAgentsRespond = userMessageCount < 3 || 
+        userInput.toLowerCase().includes('everyone') || 
+        userInput.toLowerCase().includes('thoughts') || 
+        userInput.toLowerCase().includes('opinions');
       
-      // Add a short delay to simulate thinking
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // How many agents should respond (1-3 based on context)
+      const respondingAgentCount = shouldMultipleAgentsRespond ? 
+        Math.min(Math.max(1, agents.length - 1), userMessageCount === 0 ? 2 : 1) : 1;
       
-      // Create varied responses based on political stance
-      let response = "";
-      if (respondingAgent.politicalStance === "Conservative") {
-        response = `I understand your perspective, but I believe we need to consider the fiscal implications of these policies. As a conservative, I want to make sure we're using resources efficiently while still providing quality education.`;
-      } else if (respondingAgent.politicalStance === "Progressive") {
-        response = `I appreciate your input. From my progressive standpoint, I think we should prioritize inclusive programs that ensure refugee students have equal access to education and support services.`;
-      } else if (respondingAgent.politicalStance === "Socialist") {
-        response = `Thank you for your thoughts. As a socialist, I believe we need comprehensive integration programs that provide equal opportunities for refugee children, regardless of cost concerns.`;
+      // Find agents who haven't responded recently
+      const recentAgents = messages
+        .slice(-4)
+        .filter(m => !m.isUser && m.sender !== 'System')
+        .map(m => m.sender);
+      
+      // Get agents who haven't spoken recently
+      const availableAgents = agents.filter(a => !recentAgents.includes(a.name));
+      
+      // Fix the type for the respondingAgents array
+      // Choose respondents
+      const respondingAgents: Agent[] = [];
+      if (availableAgents.length >= respondingAgentCount) {
+        // Take agents who haven't spoken recently
+        for (let i = 0; i < respondingAgentCount; i++) {
+          respondingAgents.push(availableAgents[i]);
+        }
       } else {
-        response = `Thank you for sharing that. As a moderate, I believe we need to find a balanced approach that addresses the needs of refugee students while working within our budgetary constraints.`;
+        // If we need more, take some from the full agent list
+        const remainingNeeded = respondingAgentCount - availableAgents.length;
+        respondingAgents.push(...availableAgents);
+        
+        const otherAgents = agents.filter(a => !respondingAgents.map(ra => ra.name).includes(a.name));
+        for (let i = 0; i < remainingNeeded && i < otherAgents.length; i++) {
+          respondingAgents.push(otherAgents[i]);
+        }
       }
       
-      const newAgentMessage: MessageType = {
-        id: Date.now() + Math.random() * 1000,
-        text: response,
-        sender: respondingAgent.name,
-        isUser: false,
-        avatar: respondingAgent.avatar,
-        timestamp: Date.now(),
-        agent: respondingAgent
-      };
+      // Get current policy category name
+      const policyName = policyCategories[currentCategory]?.name || "refugee education";
       
-      console.log("Adding agent response:", newAgentMessage.text);
-      
-      // Add agent message only if it's not a duplicate
-      setMessages(prev => {
-        if (isDuplicateMessage(prev, newAgentMessage)) {
-          console.log("Duplicate agent message detected, not adding");
-          return prev;
+      // Process each responding agent sequentially with slight delays
+      for (let i = 0; i < respondingAgents.length; i++) {
+        const agent = respondingAgents[i];
+        
+        // Simulate thinking time
+        await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 700));
+        
+        // Create more natural conversational responses without explicit political stance
+        let response = "";
+        
+        // Base responses on agent characteristics but make them more natural
+        switch (agent.name) {
+          case "Dr. Sarah Chen":
+            if (userMessageCount === 0) {
+              response = `I agree that access is critical. We should focus on programs that integrate refugee students into regular classrooms while providing specialized support. This approach promotes inclusion and helps students build connections with peers.`;
+            } else if (suggestsVoting) {
+              response = `I think we've had a good discussion. I'm ready to move forward with voting on ${policyName}.`;
+            } else {
+              response = `I see your point about ${policyName}. Research shows that inclusive approaches benefit all students, not just refugees. By investing in proper support services, we can help refugee students thrive in mainstream educational settings.`;
+            }
+            break;
+            
+          case "Thomas Reynolds":
+            if (userMessageCount === 0) {
+              response = `I think we need to be practical about this. Traditional schools have established frameworks that work. We should focus on integrating refugee students into existing structures with targeted language support when needed.`;
+            } else if (suggestsVoting) {
+              response = `Yes, I believe we've covered the key points. Let's proceed to voting and see where we stand on ${policyName}.`;
+            } else {
+              response = `That's an interesting perspective. We should consider the cost implications of any solution we propose. The most effective approach might be to enhance our existing school systems rather than creating entirely new structures.`;
+            }
+            break;
+            
+          case "Maria González":
+            if (userMessageCount === 0) {
+              response = `From my experience working with refugee communities, comprehensive integration is essential. Students need both academic support and cultural understanding. This means investing in specialized programs within mainstream schools.`;
+            } else if (suggestsVoting) {
+              response = `I agree we should move to voting. I hope we can choose an approach that truly supports the unique needs of refugee students in our education system.`;
+            } else {
+              response = `I appreciate what you've shared. When we design education policies, we need to center the voices of refugee students and their families. Their experiences should guide our approach to creating truly accessible education.`;
+            }
+            break;
+            
+          case "James Taylor":
+            if (userMessageCount === 0) {
+              response = `I think we can find a balanced approach here. Mixed classrooms with additional support services would provide integration while addressing specific needs of refugee students. This creates a supportive environment for all.`;
+            } else if (suggestsVoting) {
+              response = `I think we're ready to vote on this issue. We've heard some good perspectives on ${policyName}.`;
+            } else {
+              response = `You make some valid points. We should aim for solutions that balance integration with specialized support. This could include language assistance and cultural orientation within regular school settings.`;
+            }
+            break;
+            
+          default:
+            response = `I think ${policyName} is an important issue. We need to consider both integration and specialized support for refugee students while being mindful of our available resources.`;
         }
-        return [...prev, newAgentMessage];
-      });
+        
+        const newAgentMessage: MessageType = {
+          id: Date.now() + Math.random() * 1000,
+          text: response,
+          sender: agent.name,
+          isUser: false,
+          avatar: agent.avatar,
+          timestamp: Date.now() + (i * 300),
+          agent: agent
+        };
+        
+        setMessages(prev => {
+          // Check for duplicates
+          if (prev.some(msg => msg.sender === agent.name && msg.text === response)) {
+            return prev;
+          }
+          return [...prev, newAgentMessage];
+        });
+        
+        // Add slight delay between agent responses
+        if (i < respondingAgents.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
       
       setProcessingResponse(false);
       
-      // Trigger voting prompt after 3 user messages or if user suggests voting
-      if ((userMessageCount >= 2 || suggestsVoting) && currentStep !== 'voting') {
-        // Short delay before showing voting prompt
+      // Voting logic - trigger after messages or if user suggests voting
+      const shouldShowVoting = 
+        (userMessageCount >= 1 || suggestsVoting) && 
+        currentStep !== 'voting' && 
+        !localStorage.getItem('votingTriggered');
+        
+      if (shouldShowVoting) {
+        // Prevent duplicate voting triggers
+        localStorage.setItem('votingTriggered', 'true');
+        
         setTimeout(() => {
-          // Add voting prompt message
           const votingPromptMessage: MessageType = {
             id: Date.now() + Math.random() * 1000,
-            text: `We've had a good discussion about ${policyCategories[currentCategory].name}. Shall we proceed to voting on this policy?`,
+            text: `It seems we've heard from everyone on ${policyCategories[currentCategory].name}. Shall we proceed to voting?`,
             sender: 'System',
             isUser: false,
             timestamp: Date.now()
           };
           
-          // Add voting message only if it's not a duplicate
           setMessages(prev => {
-            if (isDuplicateMessage(prev, votingPromptMessage)) {
-              console.log("Duplicate voting prompt detected, not adding");
+            // Check for duplicates
+            if (prev.some(msg => 
+              msg.sender === 'System' && 
+              msg.text.includes(`proceed to voting`)
+            )) {
               return prev;
             }
-            // Only proceed to voting if we haven't already
+            
             setCurrentStep('voting');
             return [...prev, votingPromptMessage];
           });
         }, 1500);
       }
-      
     } catch (error) {
       console.error("Error in message handling:", error);
       setProcessingResponse(false);
@@ -493,31 +582,42 @@ const Phase2: React.FC = () => {
     }
   };
   
-  // Simplified handleVote function to ensure it works correctly
+  // Update the text of voting results to be more conversational
   const handleVote = () => {
     console.log("Vote initiated for category:", category.name);
     setProcessingVotes(true);
     
-    // Simple voting simulation - the user's choice wins 80% of the time
-    const votingResultsText = generateVotingResults();
+    // Get user's selected option
+    const userChoice = user.policyChoices[category.id];
     
-    // Add a short delay to simulate vote processing
+    // Get option details
+    const selectedOption = userChoice 
+      ? category.options.find(opt => opt.id === userChoice)
+      : category.options[1]; // Default to middle option if none selected
+    
+    if (!selectedOption) {
+      console.error("No option selected and couldn't find default");
+      setProcessingVotes(false);
+      return;
+    }
+    
+    // Generate more conversational results text
+    const votingResultsText = `Based on our discussion, the committee has agreed on "${selectedOption.title}" for ${category.name}. This will require ${selectedOption.cost} units from our budget. Let's continue to the next topic.`;
+    
+    // Simulate voting process
     setTimeout(() => {
       setProcessingVotes(false);
       
-      // Get the user's choice for this category
-      const userChoice = user.policyChoices[category.id];
-      
-      // If user hasn't made a choice, pick a reasonable default
-      let winningOption = userChoice || category.options[1].id;
-      
-      // Record the group decision
+      // Record the decision with actual user choice
       dispatch({
         type: 'SET_GROUP_DECISION',
-        payload: { categoryId: category.id, optionId: winningOption }
+        payload: { 
+          categoryId: category.id, 
+          optionId: selectedOption.id 
+        }
       });
       
-      // Add voting results message
+      // Add results message
       const resultsMessage: MessageType = {
         id: Date.now() + Math.random() * 1000,
         text: votingResultsText,
@@ -526,55 +626,64 @@ const Phase2: React.FC = () => {
         timestamp: Date.now()
       };
       
-      // Add the message with de-duplication
       setMessages(prev => {
-        if (isDuplicateMessage(prev, resultsMessage)) {
+        // Check for duplicates
+        if (prev.some(msg => 
+          msg.sender === 'System' && 
+          msg.text.includes(`Based on our discussion, the committee has agreed on`)
+        )) {
           return prev;
         }
         return [...prev, resultsMessage];
       });
       
-      // Short delay before moving to next category
+      // Move to next category
       setTimeout(() => {
+        // Clear voting flag for next category
+        localStorage.removeItem('votingTriggered');
+        
         const nextCategoryIndex = currentCategory + 1;
         
         if (nextCategoryIndex < policyCategories.length) {
-          // Move to next category
           setCurrentCategory(nextCategoryIndex);
           setCurrentStep('discussion');
           
-          // Add message about next category
-          const nextCategoryMessage: MessageType = {
+          const nextMessage: MessageType = {
             id: Date.now() + Math.random() * 1000,
-            text: `Let's move on to the next policy category: ${policyCategories[nextCategoryIndex].name}. What are your thoughts on this issue?`,
+            text: `Now, let's discuss ${policyCategories[nextCategoryIndex].name}. What do you think about this topic?`,
             sender: 'System',
             isUser: false,
             timestamp: Date.now()
           };
           
-          // Add with de-duplication
           setMessages(prev => {
-            if (isDuplicateMessage(prev, nextCategoryMessage)) {
+            // Check for duplicates
+            if (prev.some(msg => 
+              msg.sender === 'System' && 
+              msg.text.includes(`Let's discuss ${policyCategories[nextCategoryIndex].name}`)
+            )) {
               return prev;
             }
-            return [...prev, nextCategoryMessage]; 
+            return [...prev, nextMessage];
           });
         } else {
-          // We've finished all categories
+          // Finished all categories
           setCurrentStep('results');
           
-          // Add summary message
           const summaryMessage: MessageType = {
             id: Date.now() + Math.random() * 1000,
-            text: `We've completed our discussion of all policy categories. Thank you for your participation in this important dialogue about refugee education.`,
+            text: `We've completed our discussion of all policy areas. Thank you for your participation in this important dialogue about refugee education.`,
             sender: 'System',
             isUser: false,
             timestamp: Date.now()
           };
           
-          // Add with de-duplication
           setMessages(prev => {
-            if (isDuplicateMessage(prev, summaryMessage)) {
+            // Check for duplicates
+            if (prev.some(msg => 
+              msg.sender === 'System' && 
+              msg.text.includes(`We've completed our discussion of all policy areas`)
+            )) {
               return prev;
             }
             return [...prev, summaryMessage];
@@ -582,32 +691,6 @@ const Phase2: React.FC = () => {
         }
       }, 1500);
     }, 1500);
-  };
-  
-  // Helper function to generate voting results
-  const generateVotingResults = () => {
-    // Get the user's choice for this category
-    const userChoice = user.policyChoices[category.id];
-    
-    // Get the option details
-    const userOption = category.options.find(opt => opt.id === userChoice);
-    
-    // Generate voting results text
-    let resultsText = `Voting results for ${category.name}:\n\n`;
-    
-    if (userOption) {
-      resultsText += `The group has voted to adopt: ${userOption.title}\n\n`;
-      resultsText += `This option will use ${userOption.cost} out of our 14 budget units.\n\n`;
-      resultsText += "Thank you for your participation in the voting process.";
-    } else {
-      // If user hasn't made a choice, default to the middle option
-      const defaultOption = category.options[1];
-      resultsText += `The group has voted to adopt: ${defaultOption.title}\n\n`;
-      resultsText += `This option will use ${defaultOption.cost} out of our 14 budget units.\n\n`;
-      resultsText += "Thank you for your participation in the voting process.";
-    }
-    
-    return resultsText;
   };
   
   // Handle proceed to Phase 3
@@ -693,6 +776,7 @@ const Phase2: React.FC = () => {
                   borderRadius: 1,
                   bgcolor: 'background.paper',
                   boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                  position: 'relative',
                   '&::-webkit-scrollbar': {
                     width: '6px',
                   },
@@ -705,6 +789,53 @@ const Phase2: React.FC = () => {
                   }
                 }}
               >
+                {/* Participants panel */}
+                <Box sx={{
+                  position: 'absolute',
+                  bottom: 10,
+                  right: 10,
+                  bgcolor: 'rgba(255,255,255,0.9)',
+                  borderRadius: '8px',
+                  p: 1,
+                  width: 'auto',
+                  minWidth: 120,
+                  border: '1px solid rgba(0,0,0,0.1)',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                  zIndex: 100,
+                  fontSize: '0.75rem',
+                  display: { xs: 'none', md: 'block' } // Only show on larger screens
+                }}>
+                  <Typography variant="caption" sx={{ display: 'block', fontWeight: 'bold', mb: 0.5, color: 'text.secondary' }}>
+                    Participants
+                  </Typography>
+                  {agents.map((agent) => (
+                    <Box key={agent.id} sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                      <Box
+                        sx={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: '50%',
+                          bgcolor: 'success.main',
+                          mr: 1
+                        }}
+                      />
+                      <Typography variant="caption" noWrap>{agent.name}</Typography>
+                    </Box>
+                  ))}
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Box
+                      sx={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: '50%',
+                        bgcolor: 'primary.main',
+                        mr: 1
+                      }}
+                    />
+                    <Typography variant="caption">You</Typography>
+                  </Box>
+                </Box>
+                
                 {messages.length === 0 ? (
                   // Show this when no messages are available
                   <Box sx={{ 
@@ -790,37 +921,16 @@ const Phase2: React.FC = () => {
                                 {msg.agent.name && msg.agent.name.charAt(0)}
                               </Avatar>
                               <Box sx={{ maxWidth: 'calc(100% - 48px)' }}>
-                                <Box sx={{ 
-                                  display: 'flex', 
-                                  alignItems: 'center', 
-                                  mb: 0.5,
-                                  flexWrap: 'wrap'
-                                }}>
-                                  <Typography 
-                                    variant="subtitle2" 
-                                    sx={{ 
-                                      mr: 1, 
-                                      fontWeight: 'bold',
-                                      fontSize: '0.85rem'
-                                    }}
-                                  >
-                                    {msg.agent.name}
-                                  </Typography>
-                                  <Chip
-                                    label={msg.agent.politicalStance}
-                                    size="small"
-                                    sx={{
-                                      height: 20,
-                                      fontSize: '0.65rem',
-                                      bgcolor: getStanceColor(msg.agent.politicalStance),
-                                      color: 'white',
-                                      '& .MuiChip-label': {
-                                        px: 0.8,
-                                        py: 0.2
-                                      }
-                                    }}
-                                  />
-                                </Box>
+                                <Typography 
+                                  variant="subtitle2" 
+                                  sx={{ 
+                                    mb: 0.5,
+                                    fontWeight: 'bold',
+                                    fontSize: '0.85rem'
+                                  }}
+                                >
+                                  {msg.agent.name}
+                                </Typography>
                                 <Paper 
                                   elevation={1} 
                                   sx={{ 
