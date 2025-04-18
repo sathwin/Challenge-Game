@@ -125,6 +125,35 @@ const Phase2: React.FC = () => {
   // Calculate the current category being discussed
   const category = policyCategories[currentCategory];
   
+  // Reference for the reset button
+  const resetRef = useRef<HTMLButtonElement>(null);
+
+  // Add direct handler for forcing voting state
+  const forceVotingState = () => {
+    console.log('Forcing transition to voting state');
+    setCurrentStep('voting');
+    
+    // Add system message acknowledging the transition
+    const votingMessage: MessageType = {
+      id: Date.now() + Math.random() * 1000,
+      text: `Let's proceed to voting on ${policyCategories[currentCategory].name}.`,
+      sender: 'System',
+      isUser: false,
+      timestamp: Date.now()
+    };
+    
+    setMessages(prev => {
+      // Only add if there isn't already a similar message
+      if (!prev.some(msg => 
+        msg.sender === 'System' && 
+        msg.text.includes(`proceed to voting`)
+      )) {
+        return [...prev, votingMessage];
+      }
+      return prev;
+    });
+  };
+  
   // Fix the dependency array to a stable reference
   useEffect(() => {
     console.log("Initial Phase2 useEffect running");
@@ -270,36 +299,7 @@ const Phase2: React.FC = () => {
     }
   }, [messages]);
   
-  // Handle when all categories have been discussed
-  useEffect(() => {
-    if (typeof currentCategory === "number" && currentCategory >= policyCategories.length && currentStep === 'results') {
-      // Check if we've already calculated total budget
-      const totalBudget = Object.keys(groupDecisions).reduce((total, catId) => {
-        const category = policyCategories.find(cat => cat.id === Number(catId));
-        const option = category?.options.find(opt => opt.id === groupDecisions[Number(catId)]);
-        return total + (option?.cost || 0);
-      }, 0);
-      
-      // Add a summary message
-      const summaryMessage: MessageType = {
-        id: Date.now() + 3,
-        text: `We've completed our discussion of all policy categories. Our final decisions use ${totalBudget} of our 14 budget units. Thank you for your participation in this important dialogue about refugee education.`,
-        sender: 'System',
-        isUser: false,
-        timestamp: Date.now()
-      };
-      
-      setMessages(prevMessages => {
-        // Only add if it doesn't already exist
-        if (!prevMessages.some(msg => msg.text.includes("We've completed our discussion of all policy categories"))) {
-          return [...prevMessages, summaryMessage];
-        }
-        return prevMessages;
-      });
-    }
-  }, [currentCategory, currentStep, groupDecisions, policyCategories]);
-  
-  // Update handleSendMessage for more natural responses without political stance labels
+  // Modify handleSendMessage to ensure agents respond to each user message
   const handleSendMessage = async () => {
     if (!userInput.trim()) return;
     
@@ -327,108 +327,163 @@ const Phase2: React.FC = () => {
     setProcessingResponse(true);
     
     try {
-      // Check if message suggests voting
-      const suggestsVoting = userInput.toLowerCase().match(/vote|proceed|decide|voting|consensus|okay|next|yes|go ahead/);
-      
-      // Get user message count
-      const userMessageCount = messages.filter(m => m.isUser).length;
-      
-      // Determine which agents should respond
-      // For early messages, get multiple responses to simulate a real discussion
-      const shouldMultipleAgentsRespond = userMessageCount < 3 || 
-        userInput.toLowerCase().includes('everyone') || 
-        userInput.toLowerCase().includes('thoughts') || 
-        userInput.toLowerCase().includes('opinions');
-      
-      // How many agents should respond (1-3 based on context)
-      const respondingAgentCount = shouldMultipleAgentsRespond ? 
-        Math.min(Math.max(1, agents.length - 1), userMessageCount === 0 ? 2 : 1) : 1;
-      
-      // Find agents who haven't responded recently
-      const recentAgents = messages
-        .slice(-4)
-        .filter(m => !m.isUser && m.sender !== 'System')
-        .map(m => m.sender);
-      
-      // Get agents who haven't spoken recently
-      const availableAgents = agents.filter(a => !recentAgents.includes(a.name));
-      
-      // Fix the type for the respondingAgents array
-      // Choose respondents
-      const respondingAgents: Agent[] = [];
-      if (availableAgents.length >= respondingAgentCount) {
-        // Take agents who haven't spoken recently
-        for (let i = 0; i < respondingAgentCount; i++) {
-          respondingAgents.push(availableAgents[i]);
-        }
-      } else {
-        // If we need more, take some from the full agent list
-        const remainingNeeded = respondingAgentCount - availableAgents.length;
-        respondingAgents.push(...availableAgents);
-        
-        const otherAgents = agents.filter(a => !respondingAgents.map(ra => ra.name).includes(a.name));
-        for (let i = 0; i < remainingNeeded && i < otherAgents.length; i++) {
-          respondingAgents.push(otherAgents[i]);
-        }
-      }
+      // Always get responses from at least 2 agents for better conversation flow
+      // The first agent should be picked based on the topic/question
+      // Ensure different agents respond to provide diverse perspectives
       
       // Get current policy category name
       const policyName = policyCategories[currentCategory]?.name || "refugee education";
+      
+      // Check for specific topics in the user's message
+      const isAboutLanguage = userInput.toLowerCase().includes('language') || 
+                            policyName.toLowerCase().includes('language');
+      const isAboutAccess = userInput.toLowerCase().includes('access') || 
+                          userInput.toLowerCase().includes('everyone') ||
+                          policyName.toLowerCase().includes('access');
+      const isAskingOpinions = userInput.toLowerCase().includes('what do you') || 
+                             userInput.toLowerCase().includes('thoughts') || 
+                             userInput.toLowerCase().includes('think') ||
+                             userInput.toLowerCase().includes('what') ||
+                             userInput.toLowerCase().includes('other');
+      
+      // Select appropriate agents based on the topic
+      let primaryAgentIndex = 0;
+      
+      if (isAboutLanguage) {
+        // For language questions, prioritize agents with strong views on language
+        primaryAgentIndex = agents.findIndex(a => 
+          a.name === "Maria González" || a.name === "Dr. Sarah Chen"
+        );
+      } else if (isAboutAccess) {
+        // For access questions, alternate between progressive and conservative views
+        const lastAgent = messages
+          .slice(-3)
+          .find(m => !m.isUser && m.agent)?.agent?.name;
+          
+        primaryAgentIndex = agents.findIndex(a => 
+          (lastAgent === "Dr. Sarah Chen" ? 
+            a.name === "Thomas Reynolds" : 
+            a.name === "Dr. Sarah Chen")
+        );
+      } else if (isAskingOpinions) {
+        // For opinion questions, get at least two different perspectives
+        primaryAgentIndex = Math.floor(Math.random() * agents.length);
+      } else {
+        // Default: pick the agent who hasn't spoken recently
+        const recentAgents = messages
+          .slice(-5)
+          .filter(m => !m.isUser && m.sender !== 'System')
+          .map(m => m.sender);
+          
+        // Find first agent not in recent speakers
+        primaryAgentIndex = agents.findIndex(a => !recentAgents.includes(a.name));
+        if (primaryAgentIndex === -1) primaryAgentIndex = Math.floor(Math.random() * agents.length);
+      }
+      
+      // Ensure we have a valid primary agent
+      if (primaryAgentIndex === -1) primaryAgentIndex = 0;
+      
+      // Create a list of agents who will respond
+      const respondingAgents: Agent[] = [];
+      
+      // Add primary agent
+      respondingAgents.push(agents[primaryAgentIndex]);
+      
+      // Add a second agent with a different perspective
+      const secondaryAgentIndex = agents.findIndex(a => 
+        a.politicalStance !== agents[primaryAgentIndex].politicalStance &&
+        // Prefer agents who haven't spoken recently
+        !messages
+          .slice(-3)
+          .filter(m => !m.isUser)
+          .some(m => m.sender === a.name)
+      );
+      
+      if (secondaryAgentIndex !== -1) {
+        respondingAgents.push(agents[secondaryAgentIndex]);
+      } else {
+        // If we can't find an ideal second agent, pick any different agent
+        const availableAgents = agents.filter((_, i) => i !== primaryAgentIndex);
+        if (availableAgents.length > 0) {
+          respondingAgents.push(availableAgents[Math.floor(Math.random() * availableAgents.length)]);
+        }
+      }
       
       // Process each responding agent sequentially with slight delays
       for (let i = 0; i < respondingAgents.length; i++) {
         const agent = respondingAgents[i];
         
-        // Simulate thinking time
-        await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 700));
+        // Simulate thinking time - shorter for better flow
+        await new Promise(resolve => setTimeout(resolve, 600 + Math.random() * 600));
         
-        // Create more natural conversational responses without explicit political stance
+        // Get response based on agent characteristics with topic awareness
         let response = "";
         
-        // Base responses on agent characteristics but make them more natural
+        // Check for specific topics in the user's message
+        const isAboutLanguage = userInput.toLowerCase().includes('language') || 
+                              policyName.toLowerCase().includes('language');
+        
+        const isAboutAccess = userInput.toLowerCase().includes('access') || 
+                            policyName.toLowerCase().includes('access');
+        
+        const isAskingOpinions = userInput.toLowerCase().includes('what do you') || 
+                               userInput.toLowerCase().includes('thoughts') || 
+                               userInput.toLowerCase().includes('think') ||
+                               userInput.toLowerCase().includes('what') ||
+                               userInput.toLowerCase().includes('other');
+        
+        // Base responses on agent characteristics with topic awareness
         switch (agent.name) {
           case "Dr. Sarah Chen":
-            if (userMessageCount === 0) {
-              response = `I agree that access is critical. We should focus on programs that integrate refugee students into regular classrooms while providing specialized support. This approach promotes inclusion and helps students build connections with peers.`;
-            } else if (suggestsVoting) {
-              response = `I think we've had a good discussion. I'm ready to move forward with voting on ${policyName}.`;
+            if (isAboutLanguage) {
+              response = `I believe language instruction should be inclusive. While Teanish should remain the primary language of instruction, we should offer support for refugee students in their native languages during the transition period. Multilingual education has been shown to improve long-term academic outcomes.`;
+            } else if (isAboutAccess) {
+              response = `I agree that access should be universal. Research shows that inclusive environments benefit both refugee and local students, fostering greater cultural understanding and preparing all students for our diverse society.`;
+            } else if (isAskingOpinions) {
+              response = `From my perspective as an education researcher, I support mixed classrooms with specialized support services for refugee students. This balanced approach promotes integration while addressing specific needs.`;
             } else {
-              response = `I see your point about ${policyName}. Research shows that inclusive approaches benefit all students, not just refugees. By investing in proper support services, we can help refugee students thrive in mainstream educational settings.`;
+              response = `I believe inclusive approaches to ${policyName} benefit all students, not just refugees. By investing in proper support services, we can help refugee students thrive in mainstream educational settings.`;
             }
             break;
             
           case "Thomas Reynolds":
-            if (userMessageCount === 0) {
-              response = `I think we need to be practical about this. Traditional schools have established frameworks that work. We should focus on integrating refugee students into existing structures with targeted language support when needed.`;
-            } else if (suggestsVoting) {
-              response = `Yes, I believe we've covered the key points. Let's proceed to voting and see where we stand on ${policyName}.`;
+            if (isAboutLanguage) {
+              response = `On language instruction, I believe we should maintain Teanish as our primary language while offering targeted support for refugee students. Creating separate language programs would be costly and could slow integration into our society.`;
+            } else if (isAboutAccess) {
+              response = `Regarding access, we must be practical. Our existing educational framework has proven effective for generations. Modest adjustments to accommodate refugee students make more sense than complete restructuring.`;
+            } else if (isAskingOpinions) {
+              response = `From a practical standpoint, I favor integrating refugee students into our existing educational structures with modest support services. This approach is fiscally responsible and helps maintain academic standards.`;
             } else {
-              response = `That's an interesting perspective. We should consider the cost implications of any solution we propose. The most effective approach might be to enhance our existing school systems rather than creating entirely new structures.`;
+              response = `When considering ${policyName}, we must balance compassion with practical realities. Our budgetary constraints mean we should focus on enhancing existing systems rather than creating entirely new structures.`;
             }
             break;
             
           case "Maria González":
-            if (userMessageCount === 0) {
-              response = `From my experience working with refugee communities, comprehensive integration is essential. Students need both academic support and cultural understanding. This means investing in specialized programs within mainstream schools.`;
-            } else if (suggestsVoting) {
-              response = `I agree we should move to voting. I hope we can choose an approach that truly supports the unique needs of refugee students in our education system.`;
+            if (isAboutLanguage) {
+              response = `Language instruction should honor both Teanish and refugees' native languages. Bilingual education programs don't just help refugees – they enrich the learning environment for all students and promote cultural appreciation and exchange.`;
+            } else if (isAboutAccess) {
+              response = `Equal access to education is a fundamental right. We need comprehensive programs that not only allow refugee students into classrooms but provide the specialized support they need to truly succeed and feel welcomed.`;
+            } else if (isAskingOpinions) {
+              response = `Based on my work with refugee communities, I strongly support comprehensive support programs that address both academic and cultural needs. Education policy must center the voices of refugee families.`;
             } else {
-              response = `I appreciate what you've shared. When we design education policies, we need to center the voices of refugee students and their families. Their experiences should guide our approach to creating truly accessible education.`;
+              response = `When designing policies for ${policyName}, we must center the voices of refugee students and families. Their experiences should guide our approach to creating truly accessible education.`;
             }
             break;
             
           case "James Taylor":
-            if (userMessageCount === 0) {
-              response = `I think we can find a balanced approach here. Mixed classrooms with additional support services would provide integration while addressing specific needs of refugee students. This creates a supportive environment for all.`;
-            } else if (suggestsVoting) {
-              response = `I think we're ready to vote on this issue. We've heard some good perspectives on ${policyName}.`;
+            if (isAboutLanguage) {
+              response = `On language instruction, I believe we need a balanced approach. While maintaining Teanish as our primary language, we should offer transitional language support for refugee students that gradually builds their Teanish proficiency.`;
+            } else if (isAboutAccess) {
+              response = `For access to education, I support a middle-ground approach. Integrating refugee students into mainstream classrooms with appropriate support services allows for both inclusion and specialized assistance.`;
+            } else if (isAskingOpinions) {
+              response = `I believe we can find practical compromises on ${policyName} that serve refugee students well while being mindful of our resources and existing educational frameworks.`;
             } else {
-              response = `You make some valid points. We should aim for solutions that balance integration with specialized support. This could include language assistance and cultural orientation within regular school settings.`;
+              response = `When addressing ${policyName}, we should aim for solutions that balance integration with specialized support. This creates an environment where all students can succeed.`;
             }
             break;
             
           default:
-            response = `I think ${policyName} is an important issue. We need to consider both integration and specialized support for refugee students while being mindful of our available resources.`;
+            response = `I think ${policyName} requires thoughtful consideration. We need to balance integration, specialized support, and responsible use of our resources.`;
         }
         
         const newAgentMessage: MessageType = {
@@ -449,58 +504,88 @@ const Phase2: React.FC = () => {
           return [...prev, newAgentMessage];
         });
         
-        // Add slight delay between agent responses
+        // Add shorter delay between agent responses for better conversation flow
         if (i < respondingAgents.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 800));
         }
       }
       
       setProcessingResponse(false);
-      
-      // Voting logic - trigger after messages or if user suggests voting
-      const shouldShowVoting = 
-        (userMessageCount >= 1 || suggestsVoting) && 
-        currentStep !== 'voting' && 
-        !localStorage.getItem('votingTriggered');
-        
-      if (shouldShowVoting) {
-        // Prevent duplicate voting triggers
-        localStorage.setItem('votingTriggered', 'true');
-        
-        setTimeout(() => {
-          const votingPromptMessage: MessageType = {
-            id: Date.now() + Math.random() * 1000,
-            text: `It seems we've heard from everyone on ${policyCategories[currentCategory].name}. Shall we proceed to voting?`,
-            sender: 'System',
-            isUser: false,
-            timestamp: Date.now()
-          };
-          
-          setMessages(prev => {
-            // Check for duplicates
-            if (prev.some(msg => 
-              msg.sender === 'System' && 
-              msg.text.includes(`proceed to voting`)
-            )) {
-              return prev;
-            }
-            
-            setCurrentStep('voting');
-            return [...prev, votingPromptMessage];
-          });
-        }, 1500);
-      }
     } catch (error) {
       console.error("Error in message handling:", error);
       setProcessingResponse(false);
     }
   };
   
-  // Enhanced voice input toggle with better feedback
+  // Modify the useEffect that handles when all categories have been discussed to properly transition
+  useEffect(() => {
+    if (typeof currentCategory === "number" && currentCategory >= policyCategories.length && currentStep === 'results') {
+      // Check if we've already calculated total budget
+      const totalBudget = Object.keys(groupDecisions).reduce((total, catId) => {
+        const category = policyCategories.find(cat => cat.id === Number(catId));
+        const option = category?.options.find(opt => opt.id === groupDecisions[Number(catId)]);
+        return total + (option?.cost || 0);
+      }, 0);
+      
+      // Add a more visible summary message
+      const summaryMessage: MessageType = {
+        id: Date.now() + 3,
+        text: `CONGRATULATIONS! We've completed our discussion of all policy categories. Our final decisions use ${totalBudget} of our 14 budget units.`,
+        sender: 'System',
+        isUser: false,
+        timestamp: Date.now()
+      };
+      
+      setMessages(prevMessages => {
+        // Only add if it doesn't already exist
+        if (!prevMessages.some(msg => msg.text.includes("CONGRATULATIONS!"))) {
+          return [...prevMessages, summaryMessage];
+        }
+        return prevMessages;
+      });
+      
+      // Add another message directing the user to proceed to Phase 3
+      setTimeout(() => {
+        const proceedMessage: MessageType = {
+          id: Date.now() + 5,
+          text: `⭐ NEXT STEP: Please click the "Proceed to Phase 3: Reflection" button at the bottom of the screen to continue to the reflection phase. ⭐`,
+          sender: 'System',
+          isUser: false,
+          timestamp: Date.now() + 100
+        };
+        
+        setMessages(prev => {
+          if (!prev.some(msg => msg.text.includes("NEXT STEP"))) {
+            return [...prev, proceedMessage];
+          }
+          return prev;
+        });
+      }, 1500);
+      
+      // Add a visual indicator at the end of the chat
+      setTimeout(() => {
+        const finalInstructionMessage: MessageType = {
+          id: Date.now() + 7,
+          text: `Click the pulsing purple button below to proceed to Phase 3 where you'll reflect on your policy decisions.`,
+          sender: 'System',
+          isUser: false,
+          timestamp: Date.now() + 200
+        };
+        
+        setMessages(prev => {
+          if (!prev.some(msg => msg.text.includes("pulsing purple button"))) {
+            return [...prev, finalInstructionMessage];
+          }
+          return prev;
+        });
+      }, 3000);
+    }
+  }, [currentCategory, currentStep, groupDecisions, policyCategories]);
+  
+  // Implement voice input functionality that actually works
   const toggleVoiceInput = () => {
     if (!recognition) {
-      // Speech recognition not available
-      alert("Speech recognition is not supported in your browser. Please try using Chrome.");
+      alert("Speech recognition is not supported in your browser. Please try Chrome.");
       return;
     }
     
@@ -509,7 +594,7 @@ const Phase2: React.FC = () => {
       setIsRecording(false);
       try {
         recognition.stop();
-        console.log("Speech recognition stopped manually");
+        console.log("Speech recognition stopped");
       } catch (error) {
         console.error("Error stopping speech recognition:", error);
       }
@@ -517,64 +602,52 @@ const Phase2: React.FC = () => {
       // Start recording
       setIsRecording(true);
       
-      // Reset handlers to avoid duplicates
-      if (recognition.onresult) recognition.onresult = null;
-      if (recognition.onerror) recognition.onerror = null;
-      if (recognition.onend) recognition.onend = null;
+      // Reset handlers
+      recognition.onresult = null;
+      recognition.onerror = null;
+      recognition.onend = null;
       
-      // Set up the handlers
+      // Set up handlers
       recognition.onresult = (event: any) => {
-        console.log("Speech recognition result:", event);
         if (event.results && event.results.length > 0) {
           const transcript = event.results[0][0].transcript;
           console.log("Recognized speech:", transcript);
           
-          // Update user input with the recognized text
-          setUserInput(prevInput => {
-            const trimmedPrev = prevInput.trim();
-            const newValue = trimmedPrev 
-              ? `${trimmedPrev} ${transcript}`
-              : transcript;
-            return newValue;
-          });
+          // Update input field with recognized text
+          setUserInput(prev => prev ? `${prev} ${transcript}` : transcript);
         }
       };
       
       recognition.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
-        // Add a user-friendly message for permission issues
-        if (event.error === 'not-allowed') {
-          setUserInput(prevInput => 
-            prevInput + " (Please enable microphone permissions to use voice input.)"
-          );
-        }
+        console.error("Speech recognition error:", event.error);
         setIsRecording(false);
+        
+        if (event.error === 'not-allowed') {
+          alert("Please enable microphone permissions to use voice input.");
+        }
       };
       
       recognition.onend = () => {
-        console.log("Speech recognition ended naturally");
+        console.log("Speech recognition ended");
         setIsRecording(false);
       };
       
       // Start listening
       try {
         recognition.start();
-        console.log("Speech recognition started successfully");
+        console.log("Speech recognition started");
         
-        // We'll also set a backup timer to stop recording after 10 seconds
-        // in case the onend event doesn't fire for some reason
+        // Auto-stop after 10 seconds as a safety
         setTimeout(() => {
           if (isRecording) {
-            console.log("Backup timer stopping speech recognition");
             setIsRecording(false);
             try {
               recognition.stop();
-            } catch (error) {
-              console.error("Error stopping speech recognition from timer:", error);
+            } catch (e) {
+              console.error("Error stopping speech recognition after timeout", e);
             }
           }
         }, 10000);
-        
       } catch (error) {
         console.error("Error starting speech recognition:", error);
         setIsRecording(false);
@@ -583,7 +656,86 @@ const Phase2: React.FC = () => {
     }
   };
   
-  // Update the text of voting results to be more conversational
+  // Update the handleProceedToPhase3 function
+  const handleProceedToPhase3 = () => {
+    // Add debug logging
+    console.log("handleProceedToPhase3 called");
+    console.log("Current category:", currentCategory);
+    console.log("Number of policy categories:", policyCategories.length);
+    console.log("Current step:", currentStep);
+    console.log("Group decisions:", groupDecisions);
+    
+    // Make sure we're showing all group decisions in logs for debugging
+    Object.entries(groupDecisions).forEach(([catId, optionId]) => {
+      const cat = policyCategories.find(c => c.id === Number(catId));
+      const opt = cat?.options.find(o => o.id === optionId);
+      console.log(`Category: ${cat?.name}, Option: ${opt?.title}, Cost: ${opt?.cost}`);
+    });
+
+    // More permissive condition: allow proceeding to Phase 3 from the last category
+    if (currentCategory >= policyCategories.length - 1 || currentStep === 'results') {
+      console.log("Conditions met for proceeding to Phase 3");
+      
+      // Create a helpful transition message
+      const transitionMessage: MessageType = {
+        id: Date.now() + Math.random() * 1000,
+        text: `⭐ Moving to Phase 3: Reflection. Thank you for your participation! ⭐`,
+        sender: 'System',
+        isUser: false,
+        timestamp: Date.now()
+      };
+      
+      setMessages(prev => [...prev, transitionMessage]);
+      
+      // Add a final delay to ensure state has settled
+      setTimeout(() => {
+        console.log("Dispatching phase change to phase3");
+        dispatch({ type: 'SET_PHASE', payload: 'phase3' });
+      }, 1000);
+    } else {
+      console.warn("Cannot proceed to Phase 3 yet - policy discussions incomplete");
+      
+      // Provide a helpful message to the user
+      const warningMessage: MessageType = {
+        id: Date.now() + Math.random() * 1000,
+        text: `You need to complete all policy discussions before proceeding to Phase 3. Please continue the current discussion.`,
+        sender: 'System',
+        isUser: false,
+        timestamp: Date.now()
+      };
+      
+      setMessages(prev => [...prev, warningMessage]);
+    }
+  };
+
+  // Get current step icon
+  const getStepIcon = () => {
+    switch (currentStep) {
+      case 'intro':
+        return <GroupsIcon fontSize="large" />;
+      case 'discussion':
+        return <ChatIcon fontSize="large" />;
+      case 'voting':
+        return <HowToVoteIcon fontSize="large" />;
+      case 'results':
+        return <CheckCircleIcon fontSize="large" />;
+      default:
+        return <ChatIcon fontSize="large" />;
+    }
+  };
+  
+  // Add an effect to reset budget to 14 when component mounts
+  useEffect(() => {
+    // Reset the user's budget to 14 to ensure it starts fresh
+    dispatch({
+      type: 'UPDATE_USER_INFO',
+      payload: { 
+        remainingBudget: 14
+      }
+    });
+  }, []); // Empty dependency array ensures this runs only once at mount
+
+  // Add back the handleVote function that was removed
   const handleVote = () => {
     console.log("Vote initiated for category:", category.name);
     setProcessingVotes(true);
@@ -712,38 +864,6 @@ const Phase2: React.FC = () => {
       }, 1500);
     }, 1500);
   };
-  
-  // Handle proceed to Phase 3
-  const handleProceedToPhase3 = () => {
-    dispatch({ type: 'SET_PHASE', payload: 'phase3' });
-  };
-
-  // Get current step icon
-  const getStepIcon = () => {
-    switch (currentStep) {
-      case 'intro':
-        return <GroupsIcon fontSize="large" />;
-      case 'discussion':
-        return <ChatIcon fontSize="large" />;
-      case 'voting':
-        return <HowToVoteIcon fontSize="large" />;
-      case 'results':
-        return <CheckCircleIcon fontSize="large" />;
-      default:
-        return <ChatIcon fontSize="large" />;
-    }
-  };
-  
-  // Add an effect to reset budget to 14 when component mounts
-  useEffect(() => {
-    // Reset the user's budget to 14 to ensure it starts fresh
-    dispatch({
-      type: 'UPDATE_USER_INFO',
-      payload: { 
-        remainingBudget: 14
-      }
-    });
-  }, []); // Empty dependency array ensures this runs only once at mount
 
   return (
     <motion.div 
@@ -758,26 +878,37 @@ const Phase2: React.FC = () => {
           <Typography variant="caption" sx={{ display: 'block', mb: 1 }}>
             Agents: {agents?.length || 0} | Step: {currentStep} | Discussion: {discussionStep}
           </Typography>
-          <Button 
-            variant="outlined" 
-            size="small" 
-            color="error"
-            fullWidth
-            onClick={() => {
-              // Force complete reset
-              console.log("Emergency reset triggered");
-              localStorage.clear();
-              sessionStorage.clear();
-              setMessages([]);
-              dispatch({ type: 'INITIALIZE_AI_CHOICES' });
-              setTimeout(() => {
-                initializeDiscussion();
-              }, 300);
-            }}
-            sx={{ fontSize: '0.7rem', py: 0.5 }}
-          >
-            Emergency Reset
-          </Button>
+          <Stack direction="row" spacing={1}>
+            <Button 
+              variant="outlined" 
+              size="small" 
+              color="error"
+              ref={resetRef}
+              onClick={() => {
+                // Force complete reset
+                console.log("Emergency reset triggered");
+                localStorage.clear();
+                sessionStorage.clear();
+                setMessages([]);
+                dispatch({ type: 'INITIALIZE_AI_CHOICES' });
+                setTimeout(() => {
+                  initializeDiscussion();
+                }, 300);
+              }}
+              sx={{ fontSize: '0.7rem', py: 0.5 }}
+            >
+              Reset
+            </Button>
+            <Button 
+              variant="outlined" 
+              size="small" 
+              color="info"
+              onClick={forceVotingState}
+              sx={{ fontSize: '0.7rem', py: 0.5 }}
+            >
+              Force Voting
+            </Button>
+          </Stack>
         </Box>
       )}
       
@@ -820,6 +951,49 @@ const Phase2: React.FC = () => {
                   }
                 }}
               >
+                {/* Game state debug info - always visible */}
+                <Box 
+                  sx={{ 
+                    position: 'absolute', 
+                    top: 8, 
+                    right: 8, 
+                    zIndex: 100,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    p: 0.5,
+                    borderRadius: 1,
+                    bgcolor: 'rgba(0,0,0,0.05)',
+                    border: '1px solid rgba(0,0,0,0.1)'
+                  }}
+                >
+                  <Chip 
+                    size="small" 
+                    label={`Phase: ${currentStep}`} 
+                    sx={{ 
+                      fontSize: '0.7rem',
+                      height: 22
+                    }}
+                  />
+                  {currentStep !== 'voting' && (
+                    <Button
+                      size="small"
+                      color="primary"
+                      variant="outlined"
+                      onClick={forceVotingState}
+                      sx={{ 
+                        fontSize: '0.65rem', 
+                        py: 0, 
+                        minWidth: 0, 
+                        height: 22,
+                        lineHeight: 1 
+                      }}
+                    >
+                      Vote
+                    </Button>
+                  )}
+                </Box>
+
                 {messages.length === 0 ? (
                   // Show this when no messages are available
                   <Box sx={{ 
@@ -1039,30 +1213,69 @@ const Phase2: React.FC = () => {
                     borderTop: '1px solid',
                     borderColor: 'divider'
                   }}>
-                    <TextField
-                      fullWidth
-                      variant="outlined"
-                      placeholder="Type your message..."
-                      value={userInput}
-                      onChange={(e) => setUserInput(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                      size="small"
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: '18px',
-                          fontSize: '0.95rem',
-                          py: 0.5
-                        }
-                      }}
-                    />
-                    <IconButton
-                      color="primary"
-                      onClick={handleSendMessage}
-                      disabled={!userInput.trim() || processingResponse}
-                      sx={{ p: 1 }}
-                    >
-                      <SendIcon />
-                    </IconButton>
+                    {currentCategory >= policyCategories.length - 1 ? (
+                      <>
+                        <Button 
+                          fullWidth
+                          variant="contained"
+                          color="secondary"
+                          onClick={handleProceedToPhase3}
+                          startIcon={<CheckCircleIcon />}
+                          sx={{ py: 1.2 }}
+                        >
+                          Proceed to Phase 3: Reflection
+                        </Button>
+                        <IconButton
+                          color={isRecording ? "secondary" : "default"}
+                          onClick={toggleVoiceInput}
+                          sx={{ p: 1 }}
+                        >
+                          <MicIcon />
+                        </IconButton>
+                      </>
+                    ) : (
+                      <>
+                        <TextField
+                          fullWidth
+                          variant="outlined"
+                          placeholder="Type your message..."
+                          value={userInput}
+                          onChange={(e) => setUserInput(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                          size="small"
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              borderRadius: '18px',
+                              fontSize: '0.95rem',
+                              py: 0.5
+                            }
+                          }}
+                        />
+                        <IconButton
+                          color={isRecording ? "secondary" : "default"}
+                          onClick={toggleVoiceInput}
+                          sx={{ 
+                            p: 1,
+                            animation: isRecording ? 'pulse 1.5s infinite' : 'none',
+                            '@keyframes pulse': {
+                              '0%': { boxShadow: '0 0 0 0 rgba(156, 39, 176, 0.4)' },
+                              '70%': { boxShadow: '0 0 0 10px rgba(156, 39, 176, 0)' },
+                              '100%': { boxShadow: '0 0 0 0 rgba(156, 39, 176, 0)' },
+                            }
+                          }}
+                        >
+                          <MicIcon />
+                        </IconButton>
+                        <IconButton
+                          color="primary"
+                          onClick={handleSendMessage}
+                          disabled={!userInput.trim() || processingResponse}
+                          sx={{ p: 1 }}
+                        >
+                          <SendIcon />
+                        </IconButton>
+                      </>
+                    )}
                   </Box>
                 </motion.div>
               </Paper>
@@ -1091,11 +1304,53 @@ const Phase2: React.FC = () => {
                   {category?.options?.[0]?.description?.substring(0, 150) || 'Discuss policy options for refugee education.'}
                   {category?.options?.[0]?.description && category.options[0].description.length > 150 && '...'}
                 </Typography>
+                
+                {currentStep !== 'voting' && (
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    color="primary"
+                    onClick={forceVotingState}
+                    sx={{ mt: 1.5, fontSize: '0.8rem' }}
+                  >
+                    Proceed to Voting
+                  </Button>
+                )}
               </Paper>
               
-              {/* Voting section */}
-              {currentStep === 'voting' && (
-                <Paper elevation={2} sx={{ p: 2, mb: 2, bgcolor: 'background.paper' }}>
+              {/* Add Phase 3 button when on last category */}
+              {currentCategory >= policyCategories.length - 1 && (
+                <Paper elevation={3} sx={{ p: 2, mb: 2, bgcolor: '#f8f0ff', borderLeft: '4px solid', borderColor: 'secondary.main' }}>
+                  <Typography 
+                    variant="subtitle1" 
+                    sx={{ fontWeight: 'bold', color: 'secondary.main', mb: 1 }}
+                  >
+                    Ready for Reflection?
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 2 }}>
+                    You've reached the last policy category. When you're done, continue to the reflection phase.
+                  </Typography>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    color="secondary"
+                    size="large"
+                    onClick={handleProceedToPhase3}
+                    startIcon={<CheckCircleIcon />}
+                    sx={{ 
+                      py: 1, 
+                      fontWeight: 'bold',
+                      fontSize: '0.9rem'
+                    }}
+                  >
+                    Proceed to Phase 3: Reflection
+                  </Button>
+                </Paper>
+              )}
+              
+              {/* Voting section - Always show when currentStep is 'voting' */}
+              {currentStep === 'voting' && category && (
+                <Paper elevation={3} sx={{ p: 2, mb: 2, bgcolor: 'background.paper', borderLeft: '4px solid', borderColor: 'secondary.main' }}>
                   <Typography variant="subtitle1" sx={{ 
                     fontWeight: 'bold', 
                     display: 'flex', 
@@ -1107,44 +1362,84 @@ const Phase2: React.FC = () => {
                     Vote on {category?.name}
                   </Typography>
                   
-                  {/* Show policy options for voting */}
+                  {/* Show policy options for voting with clearer selection UI */}
                   <Box sx={{ mt: 1, mb: 2 }}>
                     {category.options.map(option => (
-                      <Box 
+                      <motion.div
                         key={option.id}
-                        sx={{ 
-                          p: 1.5, 
-                          mb: 1, 
-                          borderRadius: '6px',
-                          backgroundColor: user.policyChoices[category.id] === option.id 
-                            ? 'rgba(25, 118, 210, 0.1)' 
-                            : 'transparent',
-                          border: '1px solid',
-                          borderColor: user.policyChoices[category.id] === option.id 
-                            ? theme.palette.primary.main 
-                            : theme.palette.divider,
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease',
-                          '&:hover': {
-                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                            transform: 'translateY(-2px)'
-                          }
-                        }}
-                        onClick={() => {
-                          // Update user's policy choice for voting
-                          dispatch({
-                            type: 'SELECT_POLICY_OPTION',
-                            payload: { categoryId: category.id, optionId: option.id }
-                          });
-                        }}
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
                       >
-                        <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
-                          {option.title}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontSize: '0.8rem' }}>
-                          Cost: {option.cost} budget units
-                        </Typography>
-                      </Box>
+                        <Box 
+                          onClick={() => {
+                            console.log(`Selected option ${option.id} for category ${category.id}`);
+                            // Update user's policy choice for voting
+                            dispatch({
+                              type: 'SELECT_POLICY_OPTION',
+                              payload: { categoryId: category.id, optionId: option.id }
+                            });
+                          }}
+                          sx={{ 
+                            p: 1.5, 
+                            mb: 1, 
+                            borderRadius: '6px',
+                            backgroundColor: user.policyChoices[category.id] === option.id 
+                              ? 'rgba(25, 118, 210, 0.12)' 
+                              : 'transparent',
+                            border: '1px solid',
+                            borderLeft: '4px solid',
+                            borderLeftColor: user.policyChoices[category.id] === option.id 
+                              ? theme.palette.primary.main
+                              : 'transparent',
+                            borderColor: user.policyChoices[category.id] === option.id 
+                              ? theme.palette.primary.main 
+                              : theme.palette.divider,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            position: 'relative',
+                            '&:hover': {
+                              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                            }
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+                              {option.title}
+                            </Typography>
+                            
+                            {user.policyChoices[category.id] === option.id && (
+                              <CheckCircleIcon 
+                                color="primary" 
+                                sx={{ 
+                                  fontSize: '1.1rem', 
+                                  position: 'absolute',
+                                  top: '8px',
+                                  right: '8px'
+                                }} 
+                              />
+                            )}
+                          </Box>
+                          
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontSize: '0.8rem' }}>
+                            Cost: {option.cost} budget units
+                          </Typography>
+                          
+                          <Typography variant="body2" sx={{ 
+                            mt: 0.5, 
+                            fontSize: '0.8rem', 
+                            color: 'text.primary',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}>
+                            {option.description.substring(0, 100)}
+                            {option.description.length > 100 && '...'}
+                          </Typography>
+                        </Box>
+                      </motion.div>
                     ))}
                   </Box>
                   
@@ -1161,6 +1456,7 @@ const Phase2: React.FC = () => {
                       color="secondary" 
                       fullWidth 
                       onClick={handleVote}
+                      disabled={!user.policyChoices[category.id]}
                       size="medium"
                       sx={{ 
                         mt: 1,
@@ -1168,9 +1464,23 @@ const Phase2: React.FC = () => {
                         fontWeight: 'bold'
                       }}
                     >
-                      Submit Vote
+                      {user.policyChoices[category.id] ? 'Submit Vote' : 'Select an option'}
                     </Button>
                   )}
+                  
+                  {/* Debug info for voting */}
+                  <Box sx={{ 
+                    mt: 1, 
+                    pt: 1,
+                    borderTop: '1px solid',
+                    borderColor: 'divider',
+                    fontSize: '0.7rem',
+                    color: 'text.secondary'
+                  }}>
+                    <Typography variant="caption" sx={{ display: 'block' }}>
+                      Selected: {user.policyChoices[category.id] || 'None'}
+                    </Typography>
+                  </Box>
                 </Paper>
               )}
               
@@ -1300,6 +1610,44 @@ const Phase2: React.FC = () => {
           </Box>
         </Box>
       </Container>
+
+      {/* Add fixed position Proceed to Phase 3 button */}
+      {(currentCategory >= policyCategories.length - 1 || currentStep === 'results') && (
+        <Box
+          sx={{
+            position: 'fixed',
+            bottom: 30,
+            left: 0,
+            right: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}
+        >
+          <Button
+            variant="contained"
+            color="secondary"
+            size="large"
+            onClick={handleProceedToPhase3}
+            startIcon={<CheckCircleIcon />}
+            sx={{
+              py: 1.5,
+              px: 4,
+              fontWeight: 'bold',
+              fontSize: '1.1rem',
+              boxShadow: '0 4px 10px rgba(0,0,0,0.2)',
+              animation: 'pulse 1.5s infinite',
+              '@keyframes pulse': {
+                '0%': { boxShadow: '0 0 0 0 rgba(156, 39, 176, 0.4)' },
+                '70%': { boxShadow: '0 0 0 10px rgba(156, 39, 176, 0)' },
+                '100%': { boxShadow: '0 0 0 0 rgba(156, 39, 176, 0)' },
+              }
+            }}
+          >
+            Proceed to Phase 3: Reflection
+          </Button>
+        </Box>
+      )}
     </motion.div>
   );
 };

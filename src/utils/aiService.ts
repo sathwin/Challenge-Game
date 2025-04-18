@@ -2,8 +2,8 @@ import axios from 'axios';
 import OpenAI from 'openai';
 
 const OPENAI_API_KEY = process.env.REACT_APP_OPENAI_API_KEY;
-// Updated to use o3-mini model
-const OPENAI_MODEL = process.env.REACT_APP_OPENAI_MODEL || 'o3-mini';
+// Use gpt-4.1-mini as fallback if o4-mini isn't available
+const OPENAI_MODEL = process.env.REACT_APP_OPENAI_MODEL || 'gpt-4.1-mini';
 
 interface Message {
   role: 'system' | 'user' | 'assistant';
@@ -107,30 +107,33 @@ export const getAIResponse = async (
     6. Respond directly to what was just said
     7. Use natural, conversational language`;
 
-    // Prepare the messages for the AI model
-    const messageHistory = [
-      { role: 'system' as const, content: systemMessage },
-      ...previousMessages,
-      { role: 'user' as const, content: prompt }
-    ];
-
     try {
       console.log(`Sending request to OpenAI for ${characterName || character}`);
       console.log(`Prompt: "${prompt.substring(0, 100)}..."`);
+      
+      // Create proper message format for OpenAI
+      const messages = [
+        { role: 'system' as const, content: systemMessage },
+        ...previousMessages.map(msg => ({ 
+          role: msg.role as 'system' | 'user' | 'assistant', 
+          content: msg.content 
+        })),
+        { role: 'user' as const, content: prompt }
+      ];
 
-      // Try using the chat completions API with specified model
+      // Use the chat completions API with gpt-4.1-mini as it's more stable
       const response = await openai.chat.completions.create({
         model: OPENAI_MODEL,
-        messages: messageHistory,
-        temperature: 0.8, // Slightly increased temperature for more varied responses
+        messages: messages,
+        temperature: 0.8,
         max_tokens: 300,
-        presence_penalty: 0.2, // Added to reduce repetitive responses
-        frequency_penalty: 0.2 // Added to encourage more varied language
+        presence_penalty: 0.2,
+        frequency_penalty: 0.2
       });
       
       console.log('OpenAI response received');
       
-      // Verify response doesn't contain identity confusion
+      // Get response text
       let responseText = response.choices[0].message.content || '';
       
       // More comprehensive check for identity confusion patterns
@@ -153,9 +156,7 @@ export const getAIResponse = async (
         
         // If the response still has identity issues or is now too short, generate a fallback
         if (identityConfusion || responseText.length < 20) {
-          const politicalStance = prompt.match(/with a (\w+) political stance/) || ['', 'moderate'];
-          
-          return `I think ${responseText.replace(/^I think /i, '')}`;
+          return `I think we should find a balanced approach that considers both educational quality and cultural integration needs.`;
         }
       }
       
@@ -163,13 +164,22 @@ export const getAIResponse = async (
     } catch (error) {
       console.error('Error with OpenAI API, falling back to direct API call:', error);
       
-      // Fallback to direct API call
+      // Fallback to direct API call using standard chat completions API
       try {
+        const messages = [
+          { role: 'system' as const, content: systemMessage },
+          ...previousMessages.map(msg => ({ 
+            role: msg.role as 'system' | 'user' | 'assistant', 
+            content: msg.content 
+          })),
+          { role: 'user' as const, content: prompt }
+        ];
+        
         const fallbackResponse = await axios.post(
           'https://api.openai.com/v1/chat/completions',
           {
-            model: 'gpt-4o-mini',
-            messages: messageHistory,
+            model: 'gpt-4.1-mini',
+            messages: messages,
             temperature: 0.8,
             max_tokens: 300,
             presence_penalty: 0.2,
@@ -183,7 +193,7 @@ export const getAIResponse = async (
           }
         );
         
-        console.log('Fallback OpenAI chat response received');
+        console.log('Fallback OpenAI API call successful');
         let responseText = fallbackResponse.data.choices[0].message.content;
         
         // Apply the same identity confusion checks
@@ -253,7 +263,7 @@ export const getGameReflection = async (
     Keep your tone professional but friendly, and make references to the game's fictional setting.
     Limit your response to about 250 words and ensure it feels like an expert assessment rather than generic praise.`;
 
-    // Prepare the messages for the model
+    // Set up messages for the chat API
     const messages = [
       { role: 'system' as const, content: systemPrompt },
       { role: 'user' as const, content: decisionsText + "\n\nProvide a reflection on these policy choices and their potential impacts." }
@@ -261,7 +271,8 @@ export const getGameReflection = async (
 
     try {
       console.log(`Generating reflection with ${OPENAI_MODEL}`);
-      // Try using the chat completions API with o3-mini model
+      
+      // Use the standard chat completions API with gpt-4.1-mini
       const response = await openai.chat.completions.create({
         model: OPENAI_MODEL,
         messages: messages,
@@ -269,17 +280,17 @@ export const getGameReflection = async (
         max_tokens: 500
       });
       
-      console.log('Reflection generated successfully with o3-mini');
+      console.log('Reflection generated successfully');
       return response.choices[0].message.content || '';
     } catch (error) {
-      console.error('Error with o3-mini format for reflection, falling back to direct API call:', error);
+      console.error('Error with model, falling back to direct API call:', error);
       
       // Fallback to direct API call
       console.log('Generating game reflection with fallback method...');
       const fallbackResponse = await axios.post(
         'https://api.openai.com/v1/chat/completions',
         {
-          model: 'gpt-4o-mini',
+          model: 'gpt-4.1-mini',
           messages: messages,
           temperature: 0.7,
           max_tokens: 500
