@@ -743,38 +743,147 @@ const Phase2: React.FC = () => {
     // Get user's selected option
     const userChoice = user.policyChoices[category.id];
     
-    // Get option details
-    const selectedOption = userChoice 
+    // Get user's selected option details
+    const userSelectedOption = userChoice 
       ? category.options.find(opt => opt.id === userChoice)
-      : category.options[1]; // Default to middle option if none selected
+      : null;
     
-    if (!selectedOption) {
-      console.error("No option selected and couldn't find default");
+    if (!userSelectedOption) {
+      console.error("No option selected by user");
       setProcessingVotes(false);
       return;
     }
     
+    // Create a voting system where agents actually vote based on their preferences
+    const voteCounts: Record<number, number> = {};
+    
+    // Initialize vote counts
+    category.options.forEach(option => {
+      voteCounts[option.id] = 0;
+    });
+    
+    // Add user's vote
+    voteCounts[userChoice] += 1;
+    
+    // Each agent votes based on their own policy preference
+    agents.forEach(agent => {
+      const agentChoice = agent.policyChoices[category.id];
+      if (agentChoice) {
+        voteCounts[agentChoice] += 1;
+      } else {
+        // Fallback in case the agent doesn't have a preference for this category
+        const fallbackOption = getFallbackOptionForAgent(agent, category);
+        voteCounts[fallbackOption] += 1;
+      }
+    });
+    
+    // Helper function to determine fallback option based on agent's political stance
+    function getFallbackOptionForAgent(agent: Agent, category: PolicyCategory): number {
+      switch (agent.politicalStance) {
+        case 'Conservative':
+          return category.options[0].id; // Option 1 (lowest cost)
+        case 'Liberal':
+          return category.options[1].id; // Option 2 (medium cost)
+        case 'Socialist':
+          return category.options[2].id; // Option 3 (highest cost)
+        case 'Moderate':
+          return category.options[Math.floor(Math.random() * 2)].id; // Option 1 or 2
+        default:
+          return category.options[Math.floor(Math.random() * category.options.length)].id;
+      }
+    }
+    
+    // Determine the winning option based on vote count
+    let winningOptionId = userChoice; // Default to user's choice
+    let highestVotes = 0;
+    
+    Object.entries(voteCounts).forEach(([optionId, votes]) => {
+      if (votes > highestVotes) {
+        highestVotes = votes;
+        winningOptionId = Number(optionId);
+      }
+    });
+    
+    // Get the winning option details
+    let winningOption = category.options.find(opt => opt.id === winningOptionId);
+    
+    if (!winningOption) {
+      console.error("Couldn't determine winning option");
+      setProcessingVotes(false);
+      return;
+    }
+    
+    // Now check if selecting this option would exceed the budget limit
+    // Calculate the total cost of all existing group decisions
+    const currentDecisionsCost = Object.entries(groupDecisions).reduce((total, [catId, optId]) => {
+      // Skip the current category since we're replacing it
+      if (Number(catId) === category.id) return total;
+      
+      const cat = policyCategories.find(c => c.id === Number(catId));
+      const opt = cat?.options.find(o => o.id === optId);
+      return total + (opt?.cost || 0);
+    }, 0);
+    
+    // Check if adding this decision would exceed the 14-unit budget
+    const newTotalCost = currentDecisionsCost + winningOption.cost;
+    
+    // If the new total would exceed budget, try to find alternatives
+    if (newTotalCost > 14) {
+      console.log("Original winning option would exceed budget, looking for alternatives");
+      
+      // Sort options by votes (highest first) then by cost (lowest first)
+      const sortedOptions = [...category.options]
+        .map(opt => ({ 
+          option: opt, 
+          votes: voteCounts[opt.id] || 0 
+        }))
+        .sort((a, b) => {
+          // First sort by votes (highest first)
+          if (b.votes !== a.votes) return b.votes - a.votes;
+          // Then by cost (lowest first)
+          return a.option.cost - b.option.cost;
+        });
+      
+      // Find the first option that fits within budget
+      const affordableOption = sortedOptions.find(item => 
+        (currentDecisionsCost + item.option.cost) <= 14
+      );
+      
+      if (affordableOption) {
+        winningOptionId = affordableOption.option.id;
+        winningOption = affordableOption.option;
+      } else {
+        // If no affordable option, take the cheapest one
+        const cheapestOption = category.options.reduce(
+          (cheapest, current) => current.cost < cheapest.cost ? current : cheapest,
+          category.options[0]
+        );
+        winningOptionId = cheapestOption.id;
+        winningOption = cheapestOption;
+      }
+    }
+    
     // Generate more conversational results text
-    const votingResultsText = `Based on our discussion, the committee has agreed on "${selectedOption.title}" for ${category.name}. This will require ${selectedOption.cost} units from our budget. Let's continue to the next topic.`;
+    const votingResultsText = `Based on our discussion and voting, the committee has decided on "${winningOption.title}" for ${category.name}. This option received the most support and will require ${winningOption.cost} units from our budget. Let's continue to the next topic.`;
     
     // Simulate voting process
     setTimeout(() => {
       setProcessingVotes(false);
       
-      // Record the decision with actual user choice
+      // Record the decision
       dispatch({
         type: 'SET_GROUP_DECISION',
         payload: { 
           categoryId: category.id, 
-          optionId: selectedOption.id 
+          optionId: winningOptionId 
         }
       });
       
       // Update the used budget to ensure budget summary is correct
-      // The total used budget is the sum of all decisions costs
-      const usedBudget = Object.entries({
+      // Calculate the new total cost after this decision
+      const updatedDecisionsCost = Object.entries({
         ...groupDecisions,
-        [category.id]: selectedOption.id
+        [category.id]: winningOptionId
       }).reduce((total, [catId, optId]) => {
         const cat = policyCategories.find(c => c.id === Number(catId));
         const opt = cat?.options.find(o => o.id === optId);
@@ -785,7 +894,7 @@ const Phase2: React.FC = () => {
       dispatch({
         type: 'UPDATE_USER_INFO',
         payload: { 
-          remainingBudget: 14 - usedBudget
+          remainingBudget: 14 - updatedDecisionsCost
         }
       });
       
@@ -802,7 +911,7 @@ const Phase2: React.FC = () => {
         // Check for duplicates
         if (prev.some(msg => 
           msg.sender === 'System' && 
-          msg.text.includes(`Based on our discussion, the committee has agreed on`)
+          msg.text.includes(`Based on our discussion and voting, the committee has decided on`)
         )) {
           return prev;
         }

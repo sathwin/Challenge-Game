@@ -1,6 +1,8 @@
 import React from 'react';
-import { CssBaseline, ThemeProvider } from '@mui/material';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
 import { GameProvider, useGameContext } from './context/GameContext';
+import { BrowserRouter as Router } from 'react-router-dom';
 import IntroductionScreen from './components/IntroductionScreen';
 import UserInfoForm from './components/UserInfoForm';
 import Phase1 from './pages/Phase1';
@@ -9,6 +11,12 @@ import Phase3 from './pages/Phase3';
 import Report from './pages/Report';
 import GameTheme from './styles/GameTheme';
 import GameBackground from './components/GameBackground';
+import { SnackbarProvider as NotistackProvider } from 'notistack';
+
+// Create a theme instance
+const theme = createTheme({
+  // ... existing code ...
+});
 
 // Game content component
 const GameContent: React.FC = () => {
@@ -57,12 +65,23 @@ const GameContent: React.FC = () => {
 function App() {
   return (
     <div className="app-container">
-      <ThemeProvider theme={GameTheme}>
-        <CssBaseline />
-        <GameProvider>
-          <GameContent />
-        </GameProvider>
-      </ThemeProvider>
+      <Router>
+        <ThemeProvider theme={GameTheme}>
+          <CssBaseline />
+          <GameProvider>
+            <NotistackProvider 
+              maxSnack={3} 
+              autoHideDuration={3000}
+              anchorOrigin={{
+                vertical: 'bottom',
+                horizontal: 'right',
+              }}
+            >
+              <GameContent />
+            </NotistackProvider>
+          </GameProvider>
+        </ThemeProvider>
+      </Router>
     </div>
   );
 }
